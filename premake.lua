@@ -295,6 +295,23 @@ project "sl.common"
 
 	linkoptions { "/DELAYLOAD:NvLowLatencyVk.dll" }
 
+project "sl.mtss_g"
+	kind "SharedLib"	
+	targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
+	objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}") 
+	characterset ("MBCS")
+	dependson { "sl.common"}
+	pluginBasicSetup("mtss_g")
+	
+	files { 	
+		"./source/plugins/sl.mtss_g/**.h", 
+		"./source/plugins/sl.mtss_g/**.cpp"		
+	}
+
+	vpaths { ["impl"] = {"./source/plugins/sl.mtss_g/**.h", "./source/plugins/sl.mtss_g/**.cpp" }}
+		
+	removefiles {"./source/core/sl.extra/extra.cpp"}
+	
 if (os.isdir("./source/plugins/sl.dlss_g")) then
 	project "sl.dlss_g"
 		kind "SharedLib"	

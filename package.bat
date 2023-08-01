@@ -89,6 +89,7 @@ copy _artifacts\sl.interposer\%cfg%_x64\sl.interposer.dll %dest%\bin\x64 /Y
 copy _artifacts\sl.nrd\%cfg%_x64\sl.nrd.dll %dest%\bin\x64 /Y
 copy _artifacts\sl.nis\%cfg%_x64\sl.nis.dll %dest%\bin\x64 /Y
 copy _artifacts\sl.dlss\%cfg%_x64\sl.dlss.dll %dest%\bin\x64 /Y
+copy _artifacts\sl.mtss_g\%cfg%_x64\sl.mtss_g.dll %dest%\bin\x64 /Y
 copy _artifacts\sl.reflex\%cfg%_x64\sl.reflex.dll %dest%\bin\x64 /Y
 IF  NOT "%cfg%"=="Production" (
     copy _artifacts\sl.imgui\%cfg%_x64\sl.imgui.dll %dest%\bin\x64 /Y

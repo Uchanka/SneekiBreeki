@@ -132,6 +132,7 @@ public:
             kFeatureNIS,
             kFeatureReflex,
             kFeatureDLSS_G,
+            kFeatureMTSS_G,
             kFeatureImGUI
         };
 

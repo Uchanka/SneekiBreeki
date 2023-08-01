@@ -33,6 +33,7 @@
 #include "sl_nis.h"
 #include "sl_nrd.h"
 #include "sl_dlss_g.h"
+#include "sl_mtss_g.h"
 
 namespace sl
 {
