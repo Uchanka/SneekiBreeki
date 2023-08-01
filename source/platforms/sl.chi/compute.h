@@ -449,6 +449,7 @@ enum ComputeStatus
 enum class VendorId : uint32_t
 {
     eMS = 0x1414, // Software Render Adapter
+    eMt = 0x1ED5,
     eNVDA = 0x10DE,
     eAMD = 0x1002,
     eIntel = 0x8086,

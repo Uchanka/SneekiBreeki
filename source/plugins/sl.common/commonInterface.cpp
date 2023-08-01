@@ -195,7 +195,7 @@ bool getSystemCaps(common::SystemCaps*& info)
                 if (forceNonNVDA && vendor == chi::VendorId::eNVDA) vendor = chi::VendorId::eAMD;
 #endif
 
-                if (vendor == chi::VendorId::eNVDA || vendor == chi::VendorId::eIntel || vendor == chi::VendorId::eAMD)
+                if (vendor == chi::VendorId::eNVDA || vendor == chi::VendorId::eIntel || vendor == chi::VendorId::eAMD || vendor == chi::VendorId::eMt)
                 {
                     info->adapters[info->gpuCount].nativeInterface = adapter;
                     info->adapters[info->gpuCount].vendor = vendor;
