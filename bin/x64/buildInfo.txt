@@ -1,0 +1,23 @@
+﻿----- SL SDK BUILD INFO -----
+NRD.dll            : 4.2.1 encoding=2.1 :    Signed :                : Unknown
+NvLowLatencyVk.dll :          :    Signed :                : Unknown
+nvngx_dlss.dll     : 3,1,30,0 :    Signed : CL 33088933    : Unknown
+nvngx_dlssg.dll    : 3,1,30,0 :    Signed : CL 33088933    : Unknown
+sl.common.dll      :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.dlss.dll        :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.dlss_g.dll      :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.interposer.dll  :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.nis.dll         :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.nrd.dll         :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.reflex.dll      :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+NvLowLatencyVk.dll :          :    Signed :                : Unknown
+nvngx_dlss.dll     : 3,1,30,0 :    Signed : CL 33088933    : Unknown
+nvngx_dlssg.dll    : 3,1,30,0 :    Signed : CL 33088933    : Unknown
+sl.common.dll      :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.dlss.dll        :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.dlss_g.dll      :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.imgui.dll       :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.interposer.dll  :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.nis.dll         :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.nrd.dll         :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
+sl.reflex.dll      :  2,1,1,0 :    Signed : SHA: 3332a623  : Unknown
