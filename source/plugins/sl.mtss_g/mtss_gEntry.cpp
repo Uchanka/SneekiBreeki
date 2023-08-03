@@ -17,6 +17,8 @@
 #include "external/json/include/nlohmann/json.hpp"
 #include "_artifacts/gitVersion.h"
 
+#include <d3d11.h>
+
 using json = nlohmann::json;
 
 //! IMPORTANT: This is our include with our constants and settings (if any)
@@ -28,10 +30,8 @@ namespace sl
 
 namespace tmpl
 {
-//! Our common context
-//! 
-//! Here we can keep whatever global state we need
-//! 
+
+
 struct MTSSGContext
 {
     SL_PLUGIN_CONTEXT_CREATE_DESTROY(MTSSGContext);
@@ -48,61 +48,60 @@ struct MTSSGContext
     // 
     common::ViewportIdFrameData<> constants = { "template" };
 
-    // Common constants for the frame/viewport we are currently evaluating
-    // 
-    // See 'templateBeginEvaluation' below for more details
-    sl::Constants* commonConsts;
-
-    // Feature constants (if any)
-    //
-    // Note that we can chain as many feature
-    // constants as we want using the void* ext link.
-    sl::TemplateConstants* templateConsts;
-
-    // Some compute kernel we want to use
-    chi::Kernel myDenoisingKernel{};
-
     // Our tagged inputs
     CommonResource mvec{};
     CommonResource depth{};
-    CommonResource input{};
-    CommonResource output{};
+    CommonResource hudLessColor{};
 
     // Compute API
-    RenderAPI platform = RenderAPI::eD3D12;
-    chi::ICompute* compute{};
+    RenderAPI platform = RenderAPI::eD3D11;
+    chi::ICompute* pCompute{};
+
+    chi::ICommandListContext* pCmdList{};
+    chi::CommandQueue cmdCopyQueue{};
+
+    sl::chi::Resource appSurface{};
+    sl::chi::Resource generateFrame{};
+    sl::chi::Resource referFrame{};
 };
 }
 
 void updateEmbeddedJSON(json& config);
 
-//! These are the hooks we need to do whatever our plugin is trying to do
-//! 
-//! See pluginManager.h for the full list of currently supported hooks
-//! 
-//! Hooks are registered and executed by their priority. If it is important 
-//! for your plugin to run before/after some other plugin please check the 
-//! priorities listed by the plugin manager in the log during the startup.
-//!
-//! IMPORTANT: Please note that priority '0' is reserved for the sl.common plugin.
-//! 
-//! IMPORTANT: Please note that id must be provided and it has to match the Feature enum we assign for this plugin
-//!
 static const char* JSON = R"json(
 {
     "id" : 10000,
-    "priority" : 100,
+    "priority" : 1000,
     "name" : "sl.mtss_g",
     "namespace" : "mtss_g",
     "required_plugins" : ["sl.common"],
+    "exculusive_hooks" : ["IDXGISwapChain_GetCurrentBackBufferIndex", "IDXGISwapChain_GetBuffer"],
     "rhi" : ["d3d11"],
     
     "hooks" :
     [
         {
+            "class": "IDXGIFactory",
+            "target" : "CreateSwapChain",
+            "replacement" : "slHookCreateSwapChain",
+            "base" : "before"
+        },
+        {
             "class": "IDXGISwapChain",
             "target" : "Present",
             "replacement" : "slHookPresent",
+            "base" : "before"
+        },
+        {
+            "class": "IDXGISwapChain",
+            "target" : "GetBuffer",
+            "replacement" : "slHookGetBuffer",
+            "base" : "before"
+        },
+        {
+            "class": "IDXGISwapChain",
+            "target" : "GetCurrentBackBufferIndex",
+            "replacement" : "slHookGetCurrentBackBufferIndex",
             "base" : "before"
         }
     ]
@@ -129,7 +128,7 @@ Result slSetConstants(const void* data, uint32_t frameIndex, uint32_t id)
             // Cleanup logic goes here
         };
         // Schedule delayed destroy (few frames later)
-        CHI_VALIDATE(ctx.compute->destroy(lambda));
+        CHI_VALIDATE(ctx.pCompute->destroy(lambda));
     }
     else
     {
@@ -146,38 +145,12 @@ sl::Result templateBeginEvaluation(chi::CommandList pCmdList, const common::Even
 {
     auto& ctx = (*tmpl::getContext());
 
-    //! Here we can go and fetch our constants based on the 'event data' - frame index, unique id etc.
-    //! 
-
-    // Get common constants if we need them
-    //
-    // Note that we are passing frame index, unique id provided with the 'evaluate' call
-    if (!common::getConsts(evd, &ctx.commonConsts))
-    {
-        // Log error
-        return sl::Result::eErrorMissingConstants;
-    }
-
-    // Get our constants (if any)
-    //
-    // Note that we are passing frame index, unique id provided with the 'evaluate' call
-    if (!ctx.constants.get(evd, &ctx.templateConsts))
-    {
-        // Log error
-    }
-
-    // Get tagged resources (if you need any)
-    // 
-    // For example, here we fetch depth and mvec with their extents
-    // 
     getTaggedResource(kBufferTypeDepth, ctx.depth, evd.id, false, inputs, numInputs);
     getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, evd.id, false, inputs, numInputs);
-    // Now we fetch shadow in/out, assuming our plugin does some sort of denoising
-    getTaggedResource(kBufferTypeShadowNoisy, ctx.input, evd.id, false, inputs, numInputs);
-    getTaggedResource(kBufferTypeShadowDenoised, ctx.output, evd.id, false, inputs, numInputs);
+    getTaggedResource(kBufferTypeHUDLessColor, ctx.hudLessColor, evd.id, false, inputs, numInputs);
 
     // If tagged resources are mandatory check if they are provided or not
-    if (!ctx.depth || !ctx.mvec || !ctx.input || !ctx.output)
+    if (!ctx.depth || !ctx.mvec || !ctx.hudLessColor)
     {
         // Log error
         return sl::Result::eErrorMissingInputParameter;
@@ -198,75 +171,21 @@ sl::Result templateBeginEvaluation(chi::CommandList pCmdList, const common::Even
     return Result::eOk;
 }
 
-//! End evaluation for our plugin (if we use evalFeature mechanism to inject functionality in to the command buffer)
-//! 
 sl::Result templateEndEvaluation(chi::CommandList cmdList, const common::EventData& evd, const sl::BaseStructure** inputs, uint32_t numInputs)
 {
     // For example, dispatch compute shader work
 
     auto& ctx = (*tmpl::getContext());
 
-    chi::ResourceState mvecState{}, depthState{}, outputState{}, inputState{};
+    chi::ResourceState mvecState{}, depthState{}, hudLessColor{};
 
     // Convert native to SL state
-    CHI_VALIDATE(ctx.compute->getResourceState(ctx.mvec.getState(), mvecState));
+    CHI_VALIDATE(ctx.pCompute->getResourceState(ctx.mvec.getState(), mvecState));
     
-    CHI_VALIDATE(ctx.compute->getResourceState(ctx.depth.getState(), depthState));
-    CHI_VALIDATE(ctx.compute->getResourceState(ctx.input.getState(), inputState));
-    CHI_VALIDATE(ctx.compute->getResourceState(ctx.output.getState(), outputState));
+    CHI_VALIDATE(ctx.pCompute->getResourceState(ctx.depth.getState(), depthState));
 
-    // Scoped transition, it will return the resources back to their original states upon leaving this scope
-    // 
-    // This is optional but convenient so we don't have to call transition resources twice
-    extra::ScopedTasks revTransitions;
-    chi::ResourceTransition transitions[] =
-    {
-        {ctx.mvec, chi::ResourceState::eTextureRead, mvecState},
-        {ctx.depth, chi::ResourceState::eTextureRead, depthState},
-        {ctx.input, chi::ResourceState::eTextureRead, inputState},
-        {ctx.output, chi::ResourceState::eStorageRW, outputState}
-    };
-    CHI_VALIDATE(ctx.compute->transitionResources(cmdList, transitions, (uint32_t)countof(transitions), &revTransitions));
+    CHI_VALIDATE(ctx.pCompute->getResourceState(ctx.hudLessColor.getState(), hudLessColor));
 
-    // Assuming 1080p dispatch
-    uint32_t renderWidth = 1920;
-    uint32_t renderHeight = 1080;
-    uint32_t grid[] = { (renderWidth + 16 - 1) / 16, (renderHeight + 16 - 1) / 16, 1 };
-
-    // Now setup our constants
-    struct MyParamStruct
-    {
-        // Some dummy parameters for demonstration
-        sl::float4x4 dummy0;
-        sl::float4 dummy1;
-        sl::float2 dummy2;
-        uint32_t dummy3;
-    };
-    MyParamStruct cb{};
-
-    // NOTE: SL compute interface uses implicit dispatch for simplicity.
-    // 
-    // Root signatures, constant updates, pipeline states etc. are all
-    // managed automatically for convenience.
-
-
-    // First we bind our descriptor heaps and other shared state
-    CHI_VALIDATE(ctx.compute->bindSharedState(cmdList));
-    // Now our kernel
-    CHI_VALIDATE(ctx.compute->bindKernel(ctx.myDenoisingKernel));
-    // Now our inputs, binding slot first, register second
-    // This has to match your shader exactly
-    CHI_VALIDATE(ctx.compute->bindSampler(0, 0, chi::eSamplerLinearClamp));
-    CHI_VALIDATE(ctx.compute->bindTexture(1, 0, ctx.mvec));
-    CHI_VALIDATE(ctx.compute->bindTexture(2, 1, ctx.depth));
-    CHI_VALIDATE(ctx.compute->bindTexture(3, 2, ctx.input));
-    CHI_VALIDATE(ctx.compute->bindRWTexture(4, 0, ctx.output));
-    CHI_VALIDATE(ctx.compute->bindConsts(5, 0, &cb, sizeof(MyParamStruct), 3)); // 3 instances per frame, change as needed (num times we dispatch this kernel with different consants per frame)
-    CHI_VALIDATE(ctx.compute->dispatch(grid[0], grid[1], grid[2]));
-
-    // NOTE: sl.common will restore the pipeline to its original state 
-    // 
-    // When we return to the host from 'evaluate' it will be like SL never changed anything
     return Result::eOk;
 }
 
@@ -294,11 +213,6 @@ Result slFreeResources(sl::Feature feature, const sl::ViewportHandle& viewport)
     return Result::eOk;
 }
 
-//! Main entry point - starting our plugin
-//! 
-//! IMPORTANT: Plugins are started based on their priority.
-//! sl.common always starts first since it has priority 0
-//!
 bool slOnPluginStartup(const char* jsonConfig, void* device)
 {
     //! Common startup and setup
@@ -320,7 +234,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
         return false;
     }
     //! IMPORTANT: Add new enum in sl.h and match that id in JSON config for this plugin (see below)
-    ctx.registerEvaluateCallbacks(/* Change to correct id */ kFeatureTemplate, templateBeginEvaluation, templateEndEvaluation);
+    ctx.registerEvaluateCallbacks(/* Change to correct id */ kFeatureMTSS_G, templateBeginEvaluation, templateEndEvaluation);
 
     //! Plugin manager gives us the device type and the application id
     //! 
@@ -343,29 +257,18 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     //! Now let's obtain compute interface if we need to dispatch some compute work
     //! 
     ctx.platform = (RenderAPI)deviceType;
-    if (!param::getPointerParam(parameters, sl::param::common::kComputeAPI, &ctx.compute))
+    if (!param::getPointerParam(parameters, sl::param::common::kComputeAPI, &ctx.pCompute))
     {
         // Log error
         return false;
     }
 
-    //! We can also register some hot-keys to toggle functionality etc.
-    //! 
-    //extra::keyboard::getInterface()->registerKey("my_key", extra::keyboard::VirtKey(VK_OEM_6, true, true));
+    ctx.pCompute->createCommandQueue(chi::CommandQueueType::eCopy, ctx.cmdCopyQueue, "mtss-g copy queue");
+    assert(ctx.cmdCopyQueue != nullptr);
 
-    //! Now we create our kernel using the pre-compiled binary blobs (included from somewhere)
-    if (ctx.platform == RenderAPI::eVulkan)
-    {
-        // SPIR-V binary blob
-        // 
-        //CHI_CHECK_RF(ctx.compute->createKernel((void*)myDenoisingKernel_spv, myDenoisingKernel_spv_len, "myDenoisingKernel.cs", "main", ctx.myDenoisingKernel));
-    }
-    else
-    {
-        // DXBC binary blob
-        // 
-        //CHI_CHECK_RF(ctx.compute->createKernel((void*)myDenoisingKernel_cs, myDenoisingKernel_cs_len, "myDenoisingKernel.cs", "main", ctx.myDenoisingKernel));
-    }
+    ctx.pCompute->createCommandListContext(ctx.cmdCopyQueue, 1, ctx.pCmdList, "mtss-g ctx");
+    assert(ctx.pCmdList != nullptr);
+
     return true;
 }
 
@@ -378,28 +281,99 @@ void slOnPluginShutdown()
 {
     auto& ctx = (*tmpl::getContext());
 
-    // Here we need to release/destroy any resource we created
-    CHI_VALIDATE(ctx.compute->destroyKernel(ctx.myDenoisingKernel));
+    ctx.registerEvaluateCallbacks(kFeatureMTSS_G, nullptr, nullptr);
 
-    // If we used 'evaluate' mechanism reset the callbacks here
-    //
-    //! IMPORTANT: Add new enum in sl.h and match that id in JSON config for this plugin (see below)
-    ctx.registerEvaluateCallbacks(/* Change to correct id and also update the JSON config below */ kFeatureTemplate, nullptr, nullptr);
+    ctx.pCompute->destroyResource(ctx.generateFrame);
+    ctx.pCompute->destroyResource(ctx.referFrame);
+    ctx.pCompute->destroyResource(ctx.appSurface);
 
-    // Common shutdown
+    ctx.pCompute->destroyCommandListContext(ctx.pCmdList);
+    ctx.pCompute->destroyCommandQueue(ctx.cmdCopyQueue);
+
     plugin::onShutdown(api::getContext());
 }
 
-//! Example hook to handle SwapChain::Present calls
-//! 
+HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc, IDXGISwapChain** ppSwapChain, bool& Skip)
+{
+    SL_LOG_INFO("CreateSwapChain Width: %u, Height: %u, Buffer Count: %u", pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferCount);
+
+    HRESULT hr = S_OK;
+
+    auto& ctx = (*tmpl::getContext());
+    
+    pDesc->BufferCount = 2;
+
+	chi::ResourceDescription desc;
+	desc.width = pDesc->BufferDesc.Width;
+	desc.height = pDesc->BufferDesc.Height;
+	desc.nativeFormat = pDesc->BufferDesc.Format;
+
+	ctx.pCompute->createTexture2D(desc, ctx.generateFrame, "generate frame");
+	ctx.pCompute->createTexture2D(desc, ctx.referFrame, "refer frame");
+    
+    return hr;
+}
+
+HRESULT slHookGetBuffer(IDXGISwapChain* SwapChain, UINT Buffer, REFIID riid, void** ppSurface, bool& Skip)
+{
+    SL_LOG_INFO("GetBuffer Index: %u", Buffer);
+
+    return S_OK;
+}
+
+UINT slHookGetCurrentBackBufferIndex(IDXGISwapChain* SwapChain, bool& Skip)
+{
+    return 0;
+}
+
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
 {
-    // NOP present hook, we tell host NOT to skip the base implementation and return OK
-    // 
-    // This is just an example, if your plugin just needs to do something in `evaluate`
-    // then no hooks are necessary.
-    //
-    Skip = false;
+    auto& ctx = (*tmpl::getContext());
+
+    if (ctx.appSurface == nullptr)
+    {
+        ctx.pCompute->getSwapChainBuffer(swapChain, 0, ctx.appSurface);
+    }
+
+    if (ctx.referFrame->native == nullptr)
+    {
+        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+        swapChain->Present(SyncInterval, Flags);
+    }
+    else
+    {
+        // Here we copy half left of last refer frame and copy half right of current app surface
+        // Aim to simulate frame generate algorithm.
+        D3D11_BOX box;
+        box.left = 0;
+        box.right = 1920 / 2;
+        box.top = 0;
+        box.bottom = 1080;
+        box.front = 0;
+        box.back = 1;
+        reinterpret_cast<ID3D11DeviceContext*>(ctx.pCmdList->getCmdList())->CopySubresourceRegion(
+            static_cast<ID3D11Resource*>(ctx.generateFrame->native), 0, 0, 0, 0, 
+            static_cast<ID3D11Resource*>(ctx.referFrame->native), 0, &box);
+
+        box.left = 1920 / 2;
+        box.right = 1920;
+        reinterpret_cast<ID3D11DeviceContext*>(ctx.pCmdList->getCmdList())->CopySubresourceRegion(
+            static_cast<ID3D11Resource*>(ctx.generateFrame->native), 0, 1920 / 2, 0, 0,
+            static_cast<ID3D11Resource*>(ctx.appSurface->native), 0, &box);
+
+        // Copy current surface to refer frame
+        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+
+        // Copy generate frame to surface present
+        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generateFrame);
+        swapChain->Present(SyncInterval, Flags);
+
+        // Copy refer frame to surface present
+        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
+        swapChain->Present(SyncInterval, Flags);
+    }
+
+    Skip = true;
     return S_OK;
 }
 
@@ -426,7 +400,6 @@ void updateEmbeddedJSON(json& config)
     }
 }
 
-//! The only exported function - gateway to all functionality
 SL_EXPORT void* slGetPluginFunction(const char* functionName)
 {
     //! Forward declarations
@@ -444,10 +417,11 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     SL_EXPORT_FUNCTION(slAllocateResources);
     SL_EXPORT_FUNCTION(slFreeResources);
 
-    //! Hooks defined in the JSON config above
 
-    //! D3D12
+    SL_EXPORT_FUNCTION(slHookCreateSwapChain);
     SL_EXPORT_FUNCTION(slHookPresent);
+    SL_EXPORT_FUNCTION(slHookGetBuffer);
+    SL_EXPORT_FUNCTION(slHookGetCurrentBackBufferIndex);
 
     return nullptr;
 }
