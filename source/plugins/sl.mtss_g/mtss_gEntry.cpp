@@ -42,8 +42,6 @@ struct MTSSGContext
     // Called when plugin is unloaded, destroy any objects on heap here
     void onDestroyContext() {};
 
-    common::PFunRegisterEvaluateCallbacks* registerEvaluateCallbacks{};
-
     // For example, we can use this template to store incoming constants
     // 
     common::ViewportIdFrameData<> constants = { "template" };
@@ -139,56 +137,6 @@ Result slSetConstants(const void* data, uint32_t frameIndex, uint32_t id)
     return Result::eOk;
 }
 
-//! Begin evaluation for our plugin (if we use evalFeature mechanism to inject functionality in to the command buffer)
-//! 
-sl::Result templateBeginEvaluation(chi::CommandList pCmdList, const common::EventData& evd, const sl::BaseStructure** inputs, uint32_t numInputs)
-{
-    auto& ctx = (*tmpl::getContext());
-
-    getTaggedResource(kBufferTypeDepth, ctx.depth, evd.id, false, inputs, numInputs);
-    getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, evd.id, false, inputs, numInputs);
-    getTaggedResource(kBufferTypeHUDLessColor, ctx.hudLessColor, evd.id, false, inputs, numInputs);
-
-    // If tagged resources are mandatory check if they are provided or not
-    if (!ctx.depth || !ctx.mvec || !ctx.hudLessColor)
-    {
-        // Log error
-        return sl::Result::eErrorMissingInputParameter;
-    }
-
-    // If you need the extents check if they are valid
-    if (!ctx.depth.getExtent() || !ctx.mvec.getExtent())
-    {
-        // Log error
-        return sl::Result::eErrorMissingInputParameter;
-    }
-
-    // Initialize your feature if it was never initialized before or if user toggled it back on by setting consts.mode = TemplateMode::eOn
-    //
-    // Use compute API to allocated any temporary buffers/textures you need here.
-    //
-    // You can also check if extents changed, resolution changed (can be passed as a plugin/feature constant for example)
-    return Result::eOk;
-}
-
-sl::Result templateEndEvaluation(chi::CommandList cmdList, const common::EventData& evd, const sl::BaseStructure** inputs, uint32_t numInputs)
-{
-    // For example, dispatch compute shader work
-
-    auto& ctx = (*tmpl::getContext());
-
-    chi::ResourceState mvecState{}, depthState{}, hudLessColor{};
-
-    // Convert native to SL state
-    CHI_VALIDATE(ctx.pCompute->getResourceState(ctx.mvec.getState(), mvecState));
-    
-    CHI_VALIDATE(ctx.pCompute->getResourceState(ctx.depth.getState(), depthState));
-
-    CHI_VALIDATE(ctx.pCompute->getResourceState(ctx.hudLessColor.getState(), hudLessColor));
-
-    return Result::eOk;
-}
-
 //! Get settings for our plugin (optional and depending on if we need to provide any settings back to the host)
 Result slGetSettings(const void* cdata, void* sdata)
 {
@@ -222,19 +170,6 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     auto& ctx = (*tmpl::getContext());
 
     auto parameters = api::getContext()->parameters;
-
-    //! Register our evaluate callbacks
-    //!
-    //! Note that sl.common handles evaluate calls from the host
-    //! and distributes eval calls to the right plugin based on the feature id
-    //! 
-    if (!param::getPointerParam(parameters, param::common::kPFunRegisterEvaluateCallbacks, &ctx.registerEvaluateCallbacks))
-    {
-        // Log error
-        return false;
-    }
-    //! IMPORTANT: Add new enum in sl.h and match that id in JSON config for this plugin (see below)
-    ctx.registerEvaluateCallbacks(/* Change to correct id */ kFeatureMTSS_G, templateBeginEvaluation, templateEndEvaluation);
 
     //! Plugin manager gives us the device type and the application id
     //! 
@@ -280,8 +215,6 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
 void slOnPluginShutdown()
 {
     auto& ctx = (*tmpl::getContext());
-
-    ctx.registerEvaluateCallbacks(kFeatureMTSS_G, nullptr, nullptr);
 
     ctx.pCompute->destroyResource(ctx.generateFrame);
     ctx.pCompute->destroyResource(ctx.referFrame);
@@ -342,6 +275,13 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
     }
     else
     {
+        sl::Result ret = getTaggedResource(kBufferTypeHUDLessColor, ctx.hudLessColor, 0);
+        assert(ret == sl::Result::eOk);
+        ret = getTaggedResource(kBufferTypeDepth, ctx.depth, 0);
+        assert(ret == sl::Result::eOk);
+        ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, 0);
+        assert(ret == sl::Result::eOk);
+
         // Here we copy half left of last refer frame and copy half right of current app surface
         // Aim to simulate frame generate algorithm.
         D3D11_BOX box;
