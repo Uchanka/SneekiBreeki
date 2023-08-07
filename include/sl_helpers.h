@@ -242,6 +242,7 @@ inline const char* getFeatureAsStr(Feature f)
         SL_CASE_STR(kFeatureNIS);
         SL_CASE_STR(kFeatureReflex);
         SL_CASE_STR(kFeatureDLSS_G);
+        SL_CASE_STR(kFeatureMTSS_G);
         SL_CASE_STR(kFeatureImGUI);
         SL_CASE_STR(kFeatureCommon);
     }
@@ -259,6 +260,7 @@ inline const char* getFeatureFilenameAsStrNoSL(Feature f)
         case kFeatureNIS: return "nis";
         case kFeatureReflex: return "reflex";
         case kFeatureDLSS_G: return "dlss_g";
+        case kFeatureMTSS_G: return "mtss_g";
         case kFeatureImGUI: return "imgui";
         case kFeatureCommon: return "common";
         default: return "Unknown";
