@@ -13,6 +13,12 @@ As of SL 2.0.0, it is now possible to recompile all of SL from source, with the 
 
 ------
 
+# IMPORTANT For MT Developer
+
+The sample application using Streamline may be found in [this git repo](https://github.mthreads.com/mthreads/Streamline_Sample)
+
+**NOTE:** The Nvidia released dll not match with the repo code.
+
 ## Prerequisites
 
 #### Hardware
