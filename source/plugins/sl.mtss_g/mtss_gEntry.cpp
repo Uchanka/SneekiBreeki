@@ -65,6 +65,9 @@ struct MTSSGContext
     sl::chi::Resource referFrame{};
 
     uint64_t frameId = 1;
+
+    MTSSGOptions options;
+    MTSSGState   state;
 };
 }
 
@@ -172,6 +175,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     SL_PLUGIN_COMMON_STARTUP();
 
     auto& ctx = (*tmpl::getContext());
+    ctx.state.minWidthOrHeight = 1024;
 
     auto parameters = api::getContext()->parameters;
 
@@ -267,75 +271,89 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
 {
     auto& ctx = (*tmpl::getContext());
 
-    if (ctx.appSurface == nullptr)
+    if (ctx.options.mode == MTSSGMode::eOff)
     {
-        ctx.pCompute->getSwapChainBuffer(swapChain, 0, ctx.appSurface);
-    }
-
-    if (ctx.referFrame->native == nullptr)
-    {
-        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
-        swapChain->Present(SyncInterval, Flags);
+        SL_LOG_INFO("MTSS-G Mode is Off, present return directly.");
+        Skip = false;
     }
     else
     {
-        sl::Result ret = getTaggedResource(kBufferTypeHUDLessColor, ctx.hudLessColor, 0);
-        assert(ret == sl::Result::eOk);
-        ret = getTaggedResource(kBufferTypeDepth, ctx.depth, 0);
-        assert(ret == sl::Result::eOk);
-        ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, 0);
-        assert(ret == sl::Result::eOk);
+        Skip = true;
+        if (ctx.appSurface == nullptr)
+        {
+            ctx.pCompute->getSwapChainBuffer(swapChain, 0, ctx.appSurface);
+        }
 
-        common::EventData eventData;
-        eventData.id = 0;
-        eventData.frame = ctx.frameId;
-        common::getConsts(eventData, &ctx.commonConsts);
+        // First frame skip generate, just copy and present
+        if (ctx.frameId == 1)
+        {
+            ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+            swapChain->Present(SyncInterval, Flags);
+            ctx.state.numFramesActuallyPresented++;
+        }
+        else
+        {
+            // Not first frame, use current surface and refer frame to generate frame
+            sl::Result ret = getTaggedResource(kBufferTypeHUDLessColor, ctx.hudLessColor, 0);
+            assert(ret == sl::Result::eOk);
+            ret = getTaggedResource(kBufferTypeDepth, ctx.depth, 0);
+            assert(ret == sl::Result::eOk);
+            ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, 0);
+            assert(ret == sl::Result::eOk);
 
-        SL_LOG_INFO("Frame %llu jitterOffset: %f, %f", ctx.frameId, ctx.commonConsts->jitterOffset.x, ctx.commonConsts->jitterOffset.y);
+            common::EventData eventData;
+            eventData.id = 0;
+            eventData.frame = ctx.frameId;
+            common::getConsts(eventData, &ctx.commonConsts);
 
-        SL_LOG_INFO("ClipToPrevClip Row[0] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[0].x, ctx.commonConsts->clipToPrevClip.row[0].y, ctx.commonConsts->clipToPrevClip.row[0].z, ctx.commonConsts->clipToPrevClip.row[0].w);
-        SL_LOG_INFO("ClipToPrevClip Row[1] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[1].x, ctx.commonConsts->clipToPrevClip.row[1].y, ctx.commonConsts->clipToPrevClip.row[1].z, ctx.commonConsts->clipToPrevClip.row[1].w);
-        SL_LOG_INFO("ClipToPrevClip Row[2] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[2].x, ctx.commonConsts->clipToPrevClip.row[2].y, ctx.commonConsts->clipToPrevClip.row[2].z, ctx.commonConsts->clipToPrevClip.row[2].w);
-        SL_LOG_INFO("ClipToPrevClip Row[3] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[3].x, ctx.commonConsts->clipToPrevClip.row[3].y, ctx.commonConsts->clipToPrevClip.row[3].z, ctx.commonConsts->clipToPrevClip.row[3].w);
+            SL_LOG_INFO("Frame %llu jitterOffset: %f, %f", ctx.frameId, ctx.commonConsts->jitterOffset.x, ctx.commonConsts->jitterOffset.y);
 
-        SL_LOG_INFO("PrevClipToClip Row[0] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[0].x, ctx.commonConsts->prevClipToClip.row[0].y, ctx.commonConsts->prevClipToClip.row[0].z, ctx.commonConsts->prevClipToClip.row[0].w);
-        SL_LOG_INFO("PrevClipToClip Row[1] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[1].x, ctx.commonConsts->prevClipToClip.row[1].y, ctx.commonConsts->prevClipToClip.row[1].z, ctx.commonConsts->prevClipToClip.row[1].w);
-        SL_LOG_INFO("PrevClipToClip Row[2] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[2].x, ctx.commonConsts->prevClipToClip.row[2].y, ctx.commonConsts->prevClipToClip.row[2].z, ctx.commonConsts->prevClipToClip.row[2].w);
-        SL_LOG_INFO("PrevClipToClip Row[3] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[3].x, ctx.commonConsts->prevClipToClip.row[3].y, ctx.commonConsts->prevClipToClip.row[3].z, ctx.commonConsts->prevClipToClip.row[3].w);
+            SL_LOG_INFO("ClipToPrevClip Row[0] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[0].x, ctx.commonConsts->clipToPrevClip.row[0].y, ctx.commonConsts->clipToPrevClip.row[0].z, ctx.commonConsts->clipToPrevClip.row[0].w);
+            SL_LOG_INFO("ClipToPrevClip Row[1] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[1].x, ctx.commonConsts->clipToPrevClip.row[1].y, ctx.commonConsts->clipToPrevClip.row[1].z, ctx.commonConsts->clipToPrevClip.row[1].w);
+            SL_LOG_INFO("ClipToPrevClip Row[2] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[2].x, ctx.commonConsts->clipToPrevClip.row[2].y, ctx.commonConsts->clipToPrevClip.row[2].z, ctx.commonConsts->clipToPrevClip.row[2].w);
+            SL_LOG_INFO("ClipToPrevClip Row[3] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[3].x, ctx.commonConsts->clipToPrevClip.row[3].y, ctx.commonConsts->clipToPrevClip.row[3].z, ctx.commonConsts->clipToPrevClip.row[3].w);
 
-        // Here we copy half left of last refer frame and copy half right of current app surface
-        // Aim to simulate frame generate algorithm.
-        D3D11_BOX box;
-        box.left = 0;
-        box.right = 1920 / 2;
-        box.top = 0;
-        box.bottom = 1080;
-        box.front = 0;
-        box.back = 1;
-        reinterpret_cast<ID3D11DeviceContext*>(ctx.pCmdList->getCmdList())->CopySubresourceRegion(
-            static_cast<ID3D11Resource*>(ctx.generateFrame->native), 0, 0, 0, 0, 
-            static_cast<ID3D11Resource*>(ctx.referFrame->native), 0, &box);
+            SL_LOG_INFO("PrevClipToClip Row[0] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[0].x, ctx.commonConsts->prevClipToClip.row[0].y, ctx.commonConsts->prevClipToClip.row[0].z, ctx.commonConsts->prevClipToClip.row[0].w);
+            SL_LOG_INFO("PrevClipToClip Row[1] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[1].x, ctx.commonConsts->prevClipToClip.row[1].y, ctx.commonConsts->prevClipToClip.row[1].z, ctx.commonConsts->prevClipToClip.row[1].w);
+            SL_LOG_INFO("PrevClipToClip Row[2] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[2].x, ctx.commonConsts->prevClipToClip.row[2].y, ctx.commonConsts->prevClipToClip.row[2].z, ctx.commonConsts->prevClipToClip.row[2].w);
+            SL_LOG_INFO("PrevClipToClip Row[3] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[3].x, ctx.commonConsts->prevClipToClip.row[3].y, ctx.commonConsts->prevClipToClip.row[3].z, ctx.commonConsts->prevClipToClip.row[3].w);
 
-        box.left = 1920 / 2;
-        box.right = 1920;
-        reinterpret_cast<ID3D11DeviceContext*>(ctx.pCmdList->getCmdList())->CopySubresourceRegion(
-            static_cast<ID3D11Resource*>(ctx.generateFrame->native), 0, 1920 / 2, 0, 0,
-            static_cast<ID3D11Resource*>(ctx.appSurface->native), 0, &box);
+            // Here we copy half left of last refer frame and copy half right of current app surface
+            // Aim to simulate frame generate algorithm.
+            D3D11_BOX box;
+            box.left = 0;
+            box.right = 1920 / 2;
+            box.top = 0;
+            box.bottom = 1080;
+            box.front = 0;
+            box.back = 1;
+            reinterpret_cast<ID3D11DeviceContext*>(ctx.pCmdList->getCmdList())->CopySubresourceRegion(
+                static_cast<ID3D11Resource*>(ctx.generateFrame->native), 0, 0, 0, 0,
+                static_cast<ID3D11Resource*>(ctx.referFrame->native), 0, &box);
 
-        // Copy current surface to refer frame
-        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+            box.left = 1920 / 2;
+            box.right = 1920;
+            reinterpret_cast<ID3D11DeviceContext*>(ctx.pCmdList->getCmdList())->CopySubresourceRegion(
+                static_cast<ID3D11Resource*>(ctx.generateFrame->native), 0, 1920 / 2, 0, 0,
+                static_cast<ID3D11Resource*>(ctx.appSurface->native), 0, &box);
 
-        // Copy generate frame to surface present
-        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generateFrame);
-        swapChain->Present(SyncInterval, Flags);
+            // Copy current surface to refer frame
+            ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
 
-        // Copy refer frame to surface present
-        ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
-        swapChain->Present(SyncInterval, Flags);
+            // Copy generate frame to surface present
+            ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generateFrame);
+            swapChain->Present(SyncInterval, Flags);
+            ctx.state.numFramesActuallyPresented++;
+            ctx.state.status = MTSSGStatus::eOk;
+
+            // Copy refer frame to surface present
+            ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
+            swapChain->Present(SyncInterval, Flags);
+            ctx.state.numFramesActuallyPresented++;
+        }
     }
 
     ctx.frameId++;
-    Skip = true;
     return S_OK;
 }
 
@@ -352,7 +370,7 @@ void updateEmbeddedJSON(json& config)
     {
         common::PluginInfo info{};
         // Specify minimum driver version we need
-        info.minDriver = sl::Version(455, 0, 0);
+        info.minDriver = sl::Version(0, 0, 0);
         // SL does not work on Win7, only Win10+
         info.minOS = sl::Version(10, 0, 0);
         // Specify 0 if our plugin runs on any adapter otherwise specify enum value `NV_GPU_ARCHITECTURE_*` from NVAPI
@@ -360,6 +378,35 @@ void updateEmbeddedJSON(json& config)
         info.SHA = GIT_LAST_COMMIT_SHORT;
         updateCommonEmbeddedJSONConfig(&config, info);
     }
+}
+
+sl::Result slMTSSGGetState(const sl::ViewportHandle& viewport, sl::MTSSGState& state, const sl::MTSSGOptions* options)
+{
+    auto& ctx = (*tmpl::getContext());
+
+    state = ctx.state;
+    ctx.state.numFramesActuallyPresented = 0;
+
+    return sl::Result::eOk;
+}
+
+sl::Result slMTSSGSetOptions(const sl::ViewportHandle& viewport, const sl::MTSSGOptions& options)
+{
+    auto& ctx = (*tmpl::getContext());
+
+    ctx.options = options;
+
+    SL_LOG_INFO("MTSS-G Option Mode:               %s ", ctx.options.mode == sl::MTSSGMode::eOn ? "On" : "Off");
+    SL_LOG_INFO("MTSS-G Option NumBackBuffers:     %d ", ctx.options.numBackBuffers);
+    SL_LOG_INFO("MTSS-G Option FrameBuffer Witdh:  %d ", ctx.options.colorWidth);
+    SL_LOG_INFO("MTSS-G Option FrameBuffer Height: %d ", ctx.options.colorHeight);
+    SL_LOG_INFO("MTSS-G Option FrameBuffer Format: %d ", ctx.options.colorBufferFormat);
+    SL_LOG_INFO("MTSS-G Option DepthBuffer Format: %d ", ctx.options.depthBufferFormat);
+    SL_LOG_INFO("MTSS-G Option numFramesToGenerate:%d ", ctx.options.numFramesToGenerate);
+    SL_LOG_INFO("MTSS-G Option Mvec Depth Witdh:   %d ", ctx.options.mvecDepthWidth);
+    SL_LOG_INFO("MTSS-G Option Mvec Depth Height:  %d ", ctx.options.mvecDepthHeight);
+
+    return sl::Result::eOk;
 }
 
 SL_EXPORT void* slGetPluginFunction(const char* functionName)
@@ -384,6 +431,9 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     SL_EXPORT_FUNCTION(slHookPresent);
     SL_EXPORT_FUNCTION(slHookGetBuffer);
     SL_EXPORT_FUNCTION(slHookGetCurrentBackBufferIndex);
+
+    SL_EXPORT_FUNCTION(slMTSSGGetState);
+    SL_EXPORT_FUNCTION(slMTSSGSetOptions);
 
     return nullptr;
 }
