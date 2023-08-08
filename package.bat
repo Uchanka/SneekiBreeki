@@ -28,81 +28,81 @@ IF NOT "%1"=="" (
     GOTO :loop
 )
 
-mkdir %dest%\include
-mkdir %dest%\lib\x64
-mkdir %dest%\bin\x64
-mkdir %dest%\docs
-mkdir %dest%\docs\media
-mkdir %dest%\symbols
-mkdir %dest%\scripts
+mkdir %src%\%dest%\include
+mkdir %src%\%dest%\lib\x64
+mkdir %src%\%dest%\bin\x64
+mkdir %src%\%dest%\docs
+mkdir %src%\%dest%\docs\media
+mkdir %src%\%dest%\symbols
+mkdir %src%\%dest%\scripts
 
-copy %src%\docs\ProgrammingGuide*.md %dest%\docs
-copy %src%\docs\RTX*.* %dest%\docs
-copy %src%\docs\Streamline*.pdf %dest%\docs
-copy %src%\docs\Debug*.md %dest%\docs
-copy %src%\docs\media\*.* %dest%\docs\media
+copy %src%\docs\ProgrammingGuide*.md %src%\%dest%\docs
+copy %src%\docs\RTX*.* %src%\%dest%\docs
+copy %src%\docs\Streamline*.pdf %src%\%dest%\docs
+copy %src%\docs\Debug*.md %src%\%dest%\docs
+copy %src%\docs\media\*.* %src%\%dest%\docs\media
 
-copy %src%\include\sl.h %dest%\include
-copy %src%\include\sl_*.h %dest%\include
+copy %src%\include\sl.h %src%\%dest%\include
+copy %src%\include\sl_*.h %src%\%dest%\include
 
-copy _artifacts\sl.interposer\%cfg%_x64\sl.interposer.lib %dest%\lib\x64\ /Y
+copy %src%\_artifacts\sl.interposer\%cfg%_x64\sl.interposer.lib %src%\%dest%\lib\x64\ /Y
 
-del _sdk\bin\x64\*.* /F /Q
+del %src%\_sdk\bin\x64\*.* /F /Q
 
-copy .\README.md %dest%\bin\x64 /Y
+copy %src%\.\README.md %src%\%dest%\bin\x64 /Y
 
 IF "%cfg%"=="Production" (
-    copy bin\x64\nvngx_dlss.dll %dest%\bin\x64 /Y
+    copy %src%\bin\x64\nvngx_dlss.dll %src%\%dest%\bin\x64 /Y
 ) ELSE (
-    copy bin\x64\development\nvngx_dlss.dll %dest%\bin\x64 /Y
+    copy %src%\bin\x64\development\nvngx_dlss.dll %src%\%dest%\bin\x64 /Y
 )
 
 IF "%cfg%"=="Debug" (
-    copy external\nrd\Lib\Debug\*.dll %dest%\bin\x64 /Y
-    copy external\nrd\Lib\Debug\*.pdb %dest%\bin\x64 /Y
+    copy %src%\external\nrd\Lib\Debug\*.dll %src%\%dest%\bin\x64 /Y
+    copy %src%\external\nrd\Lib\Debug\*.pdb %src%\%dest%\bin\x64 /Y
 ) ELSE (
-    copy external\nrd\Lib\Release\*.dll %dest%\bin\x64 /Y
+    copy %src%\external\nrd\Lib\Release\*.dll %src%\%dest%\bin\x64 /Y
 )
 
 IF "%cfg%"=="Profiling" (
-    copy external\pix\bin\WinPixEventRuntime.dll %dest%\bin\x64 /Y
+    copy %src%\external\pix\bin\WinPixEventRuntime.dll %src%\%dest%\bin\x64 /Y
 )
 
 IF  NOT "%cfg%"=="Production" (
-    copy scripts\sl.*.json %dest%\bin\x64 /Y
+    copy %src%\scripts\sl.*.json %src%\%dest%\bin\x64 /Y
 )
 
 IF "%cfg%"=="Production" (
-    copy bin\x64\nvngx_dlssg.dll %dest%\bin\x64 /Y
-    copy bin\x64\sl.dlss_g.dll %dest%\bin\x64 /Y
+    copy %src%\bin\x64\nvngx_dlssg.dll %src%\%dest%\bin\x64 /Y
+    copy %src%\bin\x64\sl.dlss_g.dll %src%\%dest%\bin\x64 /Y
 ) ELSE (
-    copy bin\x64\development\nvngx_dlssg.dll %dest%\bin\x64 /Y
-    copy bin\x64\development\sl.dlss_g.dll %dest%\bin\x64 /Y
+    copy %src%\bin\x64\development\nvngx_dlssg.dll %src%\%dest%\bin\x64 /Y
+    copy %src%\bin\x64\development\sl.dlss_g.dll %src%\%dest%\bin\x64 /Y
 )
 
-copy scripts\ngx_driver_*.reg %dest%\scripts /Y
+copy %src%\scripts\ngx_driver_*.reg %src%\%dest%\scripts /Y
 
-copy external\reflex-sdk-vk\lib\NvLowLatencyVk.dll %dest%\bin\x64 /Y
+copy %src%\external\reflex-sdk-vk\lib\NvLowLatencyVk.dll %src%\%dest%\bin\x64 /Y
 
-copy _artifacts\sl.common\%cfg%_x64\sl.common.dll %dest%\bin\x64 /Y
-copy _artifacts\sl.interposer\%cfg%_x64\sl.interposer.dll %dest%\bin\x64 /Y
-copy _artifacts\sl.nrd\%cfg%_x64\sl.nrd.dll %dest%\bin\x64 /Y
-copy _artifacts\sl.nis\%cfg%_x64\sl.nis.dll %dest%\bin\x64 /Y
-copy _artifacts\sl.dlss\%cfg%_x64\sl.dlss.dll %dest%\bin\x64 /Y
-copy _artifacts\sl.mtss_g\%cfg%_x64\sl.mtss_g.dll %dest%\bin\x64 /Y
-copy _artifacts\sl.reflex\%cfg%_x64\sl.reflex.dll %dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.common\%cfg%_x64\sl.common.dll %src%\%dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.interposer\%cfg%_x64\sl.interposer.dll %src%\%dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.nrd\%cfg%_x64\sl.nrd.dll %src%\%dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.nis\%cfg%_x64\sl.nis.dll %src%\%dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.dlss\%cfg%_x64\sl.dlss.dll %src%\%dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.mtss_g\%cfg%_x64\sl.mtss_g.dll %src%\%dest%\bin\x64 /Y
+copy %src%\_artifacts\sl.reflex\%cfg%_x64\sl.reflex.dll %src%\%dest%\bin\x64 /Y
 IF  NOT "%cfg%"=="Production" (
-    copy _artifacts\sl.imgui\%cfg%_x64\sl.imgui.dll %dest%\bin\x64 /Y
+    copy %src%\_artifacts\sl.imgui\%cfg%_x64\sl.imgui.dll %src%\%dest%\bin\x64 /Y
 )
 
-copy _artifacts\sl.common\%cfg%_x64\sl.common.pdb %dest%\symbols /Y
-copy _artifacts\sl.interposer\%cfg%_x64\sl.interposer.pdb %dest%\symbols /Y
-copy _artifacts\sl.nrd\%cfg%_x64\sl.nrd.pdb %dest%\symbols /Y
-copy _artifacts\sl.nis\%cfg%_x64\sl.nis.pdb %dest%\symbols /Y
-copy _artifacts\sl.dlss\%cfg%_x64\sl.dlss.pdb %dest%\symbols /Y
-copy _artifacts\sl.reflex\%cfg%_x64\sl.reflex.pdb %dest%\symbols /Y
+copy %src%\_artifacts\sl.common\%cfg%_x64\sl.common.pdb %src%\%dest%\symbols /Y
+copy %src%\_artifacts\sl.interposer\%cfg%_x64\sl.interposer.pdb %src%\%dest%\symbols /Y
+copy %src%\_artifacts\sl.nrd\%cfg%_x64\sl.nrd.pdb %src%\%dest%\symbols /Y
+copy %src%\_artifacts\sl.nis\%cfg%_x64\sl.nis.pdb %src%\%dest%\symbols /Y
+copy %src%\_artifacts\sl.dlss\%cfg%_x64\sl.dlss.pdb %src%\%dest%\symbols /Y
+copy %src%\_artifacts\sl.reflex\%cfg%_x64\sl.reflex.pdb %src%\%dest%\symbols /Y
 IF  NOT "%cfg%"=="Production" (
-    copy _artifacts\sl.imgui\%cfg%_x64\sl.imgui.pdb %dest%\symbols /Y
+    copy %src%\_artifacts\sl.imgui\%cfg%_x64\sl.imgui.pdb %src%\%dest%\symbols /Y
 )
 
 echo Configuration:%cfg%
