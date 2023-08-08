@@ -18,6 +18,8 @@
 #include "external/nvapi/nvapi.h"
 #include "external/json/include/nlohmann/json.hpp"
 #include "_artifacts/gitVersion.h"
+//#include "_artifacts/shaders/mtss_fg_pushing_cs.h"
+//#include "_artifacts/shaders/mtss_fg_pulling_cs.h"
 #include "_artifacts/shaders/mtss_fg_clearing_cs.h"
 #include "_artifacts/shaders/mtss_fg_reprojection_cs.h"
 #include "_artifacts/shaders/mtss_fg_resolution_cs.h"
@@ -361,44 +363,107 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
             SL_LOG_INFO("PrevClipToClip Row[2] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[2].x, ctx.commonConsts->prevClipToClip.row[2].y, ctx.commonConsts->prevClipToClip.row[2].z, ctx.commonConsts->prevClipToClip.row[2].w);
             SL_LOG_INFO("PrevClipToClip Row[3] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[3].x, ctx.commonConsts->prevClipToClip.row[3].y, ctx.commonConsts->prevClipToClip.row[3].z, ctx.commonConsts->prevClipToClip.row[3].w);
 #endif
-            CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
-            // Kernel 1 clear reprojected texture
-            CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.clearKernel));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.reprojectedTip));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.reprojectedTop));
+
+            sl::uint2 dimensions = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
+            sl::float2 smoothing = sl::float2(1.0f, 1.0f);
+            sl::float2 viewportSize = sl::float2(static_cast<float>(ctx.swapChainWidth), static_cast<float>(ctx.swapChainHeight));
+            sl::float2 viewportInv = sl::float2(1.0f / viewportSize.x, 1.0f / viewportSize.y);
+
             uint32_t grid[] = { (ctx.swapChainWidth + 8 - 1) / 8, (ctx.swapChainHeight + 8 - 1) / 8, 1 };
-            CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
-
-            // Kernel 2
-            struct MVecParamStruct
+            //MTFKClearing
             {
-                sl::float4x4 prevClipToClip;
-                sl::float4x4 clipToPrevClip;
-            };
-            MVecParamStruct cb;
-            memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
-            memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
-            CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 0, ctx.reprojectedTip));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 1, ctx.reprojectedTop));
-            CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, &cb, sizeof(MVecParamStruct), 1));
-            CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+                struct ClearingConstParamStruct
+                {
+                    sl::uint2 dimensions;
+                    sl::float2 smoothing;
+                    sl::float2 viewportSize;
+                    sl::float2 viewportInv;
+                };
+                ClearingConstParamStruct lb;
 
-            // Kernel 3
-            CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.resolutionKernel));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.reprojectedTip));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.reprojectedTop));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generateFrame));
-            CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+                lb.dimensions = dimensions;
+                lb.smoothing = smoothing;
+                lb.viewportSize = viewportSize;
+                lb.viewportInv = viewportInv;
+
+                CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.clearKernel));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.reprojectedTip));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.reprojectedTop));
+                CHI_VALIDATE(ctx.pCompute->bindConsts(2, 0, &lb, sizeof(lb), 1));
+
+                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+            }
+
+            //MTFKReprojection
+            {
+                struct MVecParamStruct
+                {
+                    sl::float4x4 prevClipToClip;
+                    sl::float4x4 clipToPrevClip;
+
+                    sl::uint2 dimensions;
+                    sl::float2 smoothing;
+                    sl::float2 viewportSize;
+                    sl::float2 viewportInv;
+                };
+                MVecParamStruct cb;
+                memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
+                memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
+                cb.dimensions = dimensions;
+                cb.smoothing = sl::float2(1.0f, 1.0f);
+                cb.viewportSize = viewportSize;
+                cb.viewportInv = viewportInv;
+
+                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
+
+                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 0, ctx.reprojectedTip));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 1, ctx.reprojectedTop));
+
+                CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, &cb, sizeof(cb), 1));
+                
+                CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
+
+                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+            }
+
+            //MTFKResolution
+            {
+                struct ResolutionConstParamStruct
+                {
+                    sl::uint2 dimensions;
+                    sl::float2 smoothing;
+                    sl::float2 viewportSize;
+                    sl::float2 viewportInv;
+                };
+                ResolutionConstParamStruct rb;
+                rb.dimensions = dimensions;
+                rb.smoothing = sl::float2(1.0f, 1.0f);
+                rb.viewportSize = viewportSize;
+                rb.viewportInv = viewportInv;
+
+                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.resolutionKernel));
+
+                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.reprojectedTip));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.reprojectedTop));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generateFrame));
+
+                CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, &rb, sizeof(rb), 1));
+
+                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+            }
 
             // Copy current surface to refer frame
             auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);

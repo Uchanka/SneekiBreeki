@@ -87,6 +87,12 @@ namespace sl
 constexpr float INVALID_FLOAT = 3.40282346638528859811704183484516925440e38f;
 constexpr uint32_t INVALID_UINT = 0xffffffff;
 
+struct uint2
+{
+    uint32_t x;
+    uint32_t y;
+};
+
 struct uint3
 {
     uint32_t x;
