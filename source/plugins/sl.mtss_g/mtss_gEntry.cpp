@@ -432,6 +432,9 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, {}));
             }
 
             //MTFKResolution
