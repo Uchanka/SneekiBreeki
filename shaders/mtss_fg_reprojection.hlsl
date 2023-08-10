@@ -11,6 +11,9 @@ Texture2D<float2> motionVector;
 RWTexture2D<float4> reprojectedTip;
 RWTexture2D<float4> reprojectedTop;
 
+//#define UNREAL_ENGINE_COORDINATES
+#define NVRHI_DONUT_COORDINATES
+
 cbuffer shaderConsts : register(b0)
 {
     float4x4 prevClipToClip;
@@ -35,13 +38,22 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 	
     float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
     float2 viewportUV = pixelCenter * viewportInv;
+#ifdef UNREAL_ENGINE_COORDINATES
     float2 screenPos = ViewportUVToScreenPos(viewportUV);
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+    float2 screenPos = viewportUV;
+#endif
     
-    //Bruh... Streamline doesn't differentiate static and non-static velocities
+#ifdef UNREAL_ENGINE_COORDINATES
     float2 motionVectorDecoded = motionVector[currentPixelIndex];
     //float2 motionStaticTip = ComputeStaticVelocityTipTop(screenPos, depthTextureTip[currentPixelIndex], prevClipToClip);
     //float2 motionStaticTop = ComputeStaticVelocityTopTip(screenPos, depthTextureTop[currentPixelIndex], clipToPrevClip);
-    
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+    //Bruh... Streamline doesn't differentiate static and non-static velocities
+    float2 motionVectorDecoded = motionVector[currentPixelIndex] * viewportInv;
+#endif
     float2 velocityTipCombined = motionVectorDecoded;
     float2 velocityTopCombined = motionVectorDecoded;
 
@@ -54,6 +66,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 tipTranslation = velocityTipCombined * distanceTip;
     float2 topTranslation = velocityTopCombined * distanceTop;
 	
+#ifdef UNREAL_ENGINE_COORDINATES
     float2 tipTracedScreenPos = screenPos + tipTranslation;
     float2 topTracedScreenPos = screenPos - topTranslation;
 	
@@ -64,7 +77,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 	
     float2 tipTracedPos = ViewportUVToScreenPos(tipTracedFloatCenter * viewportInv);
     float2 topTracedPos = ViewportUVToScreenPos(topTracedFloatCenter * viewportInv);
-	
+    
     float2 samplePosTip = tipTracedPos - tipTranslation;
     float2 samplePosTop = topTracedPos + topTranslation;
 	
@@ -72,6 +85,27 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     sampleUVTip = clamp(sampleUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
     float2 sampleUVTop = ScreenPosToViewportUV(samplePosTop);
     sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+    float2 tipTracedScreenPos = screenPos - tipTranslation;
+    float2 topTracedScreenPos = screenPos + topTranslation;
+	
+    int2 tipTracedIndex = floor(tipTracedScreenPos * viewportSize);
+    float2 tipTracedFloatCenter = float2(tipTracedIndex) + float2(0.5f, 0.5f);
+    int2 topTracedIndex = floor(topTracedScreenPos * viewportSize);
+    float2 topTracedFloatCenter = float2(topTracedIndex) + float2(0.5f, 0.5f);
+	
+    float2 tipTracedPos = tipTracedFloatCenter * viewportInv;
+    float2 topTracedPos = topTracedFloatCenter * viewportInv;
+    
+    float2 samplePosTip = tipTracedPos + tipTranslation;
+    float2 samplePosTop = topTracedPos - topTranslation;
+	
+    float2 sampleUVTip = samplePosTip;
+    sampleUVTip = clamp(sampleUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+    float2 sampleUVTop = samplePosTop;
+    sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+#endif
 	
 	mtss_float3 tipSample = colorTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
 	mtss_float3 topSample = colorTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
