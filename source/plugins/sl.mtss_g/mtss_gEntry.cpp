@@ -112,6 +112,18 @@ static const char* JSON = R"json(
             "base" : "before"
         },
         {
+            "class": "IDXGIFactory",
+            "target" : "CreateSwapChainForHwnd",
+            "replacement" : "slHookCreateSwapChainForHwnd",
+            "base" : "before"
+        },
+        {
+            "class": "IDXGIFactory",
+            "target" : "CreateSwapChainForCoreWindow",
+            "replacement" : "slHookCreateSwapChainForCoreWindow",
+            "base" : "before"
+        },
+        {
             "class": "IDXGISwapChain",
             "target" : "Present",
             "replacement" : "slHookPresent",
@@ -119,15 +131,33 @@ static const char* JSON = R"json(
         },
         {
             "class": "IDXGISwapChain",
-            "target" : "GetBuffer",
-            "replacement" : "slHookGetBuffer",
+            "target" : "Present1",
+            "replacement" : "slHookPresent1",
             "base" : "before"
         },
         {
             "class": "IDXGISwapChain",
-            "target" : "GetCurrentBackBufferIndex",
-            "replacement" : "slHookGetCurrentBackBufferIndex",
+            "target" : "ResizeBuffers",
+            "replacement" : "slHookResizeBuffersPre",
             "base" : "before"
+        },
+        {
+            "class": "IDXGISwapChain",
+            "target" : "ResizeBuffers",
+            "replacement" : "slHookResizeBuffersPost",
+            "base" : "after"
+        },
+        {
+            "class": "IDXGISwapChain",
+            "target" : "SetFullscreenState",
+            "replacement" : "slHookSetFullscreenStatePre",
+            "base" : "before"
+        },
+        {
+            "class": "IDXGISwapChain",
+            "target" : "SetFullscreenState",
+            "replacement" : "slHookSetFullscreenStatePost",
+            "base" : "after"
         }
     ]
 }
@@ -268,7 +298,7 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
 {
     SL_LOG_INFO("CreateSwapChain Width: %u, Height: %u, Buffer Count: %u", pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferCount);
 
-    HRESULT hr = S_OK;
+    HRESULT result = S_OK;
 
     auto& ctx = (*mtssg::getContext());
     ctx.swapChainWidth  = pDesc->BufferDesc.Width;
@@ -285,19 +315,26 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
     desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.reprojectedTip, "reprojectedTip");
     ctx.pCompute->createTexture2D(desc, ctx.reprojectedTop, "reprojectedTop");
-    return hr;
+    return result;
 }
 
-HRESULT slHookGetBuffer(IDXGISwapChain* SwapChain, UINT Buffer, REFIID riid, void** ppSurface, bool& Skip)
-{
-    SL_LOG_INFO("GetBuffer Index: %u", Buffer);
 
-    return S_OK;
+HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevice, HWND hWnd, const DXGI_SWAP_CHAIN_DESC1 * pDesc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC * pFulScreenDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
+{
+    SL_LOG_INFO("slHookCreateSwapChainForHwnd");
+
+    HRESULT result = S_OK;
+
+    return result;
 }
 
-UINT slHookGetCurrentBackBufferIndex(IDXGISwapChain* SwapChain, bool& Skip)
+HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * pDevice, IUnknown * pWindow, const DXGI_SWAP_CHAIN_DESC1 * pDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
 {
-    return 0;
+    SL_LOG_INFO("slHookCreateSwapChainForCoreWindow");
+
+    HRESULT result = S_OK;
+
+    return result;
 }
 
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
@@ -496,6 +533,51 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
     return S_OK;
 }
 
+HRESULT slHookPresent1(IDXGISwapChain * SwapChain, UINT SyncInterval, UINT PresentFlags, const DXGI_PRESENT_PARAMETERS * pPresentParameters, bool& Skip)
+{
+    SL_LOG_INFO("slHookPresent1");
+
+    HRESULT result = S_OK;
+
+    return result;
+}
+
+HRESULT slHookResizeBuffersPre(IDXGISwapChain* SwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT& SwapChainFlags, bool& Skip)
+{
+    SL_LOG_INFO("slHookResizeBuffersPre");
+
+    HRESULT result = S_OK;
+
+    return result;
+}
+
+HRESULT slHookResizeBuffersPost(IDXGISwapChain* SwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT& SwapChainFlags)
+{
+    SL_LOG_INFO("slHookResizeBuffersPost");
+
+    HRESULT result = S_OK;
+
+    return result;
+}
+
+HRESULT slHookSetFullscreenStatePre(IDXGISwapChain * SwapChain, BOOL pFullscreen, IDXGIOutput * ppTarget, bool& Skip)
+{
+    SL_LOG_INFO("slHookSetFullscreenStatePre");
+
+    HRESULT result = S_OK;
+
+    return result;
+}
+
+HRESULT slHookSetFullscreenStatePost(IDXGISwapChain* SwapChain, BOOL pFullscreen, IDXGIOutput* ppTarget)
+{
+    SL_LOG_INFO("slHookSetFullscreenStatePost");
+
+    HRESULT result = S_OK;
+
+    return result;
+}
+
 //! Figure out if we are supported on the current hardware or not
 //! 
 void updateEmbeddedJSON(json& config)
@@ -569,11 +651,15 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     SL_EXPORT_FUNCTION(slAllocateResources);
     SL_EXPORT_FUNCTION(slFreeResources);
 
-
     SL_EXPORT_FUNCTION(slHookCreateSwapChain);
+    SL_EXPORT_FUNCTION(slHookCreateSwapChainForHwnd);
+    SL_EXPORT_FUNCTION(slHookCreateSwapChainForCoreWindow);
     SL_EXPORT_FUNCTION(slHookPresent);
-    SL_EXPORT_FUNCTION(slHookGetBuffer);
-    SL_EXPORT_FUNCTION(slHookGetCurrentBackBufferIndex);
+    SL_EXPORT_FUNCTION(slHookPresent1);
+    SL_EXPORT_FUNCTION(slHookResizeBuffersPre);
+    SL_EXPORT_FUNCTION(slHookResizeBuffersPost);
+    SL_EXPORT_FUNCTION(slHookSetFullscreenStatePre);
+    SL_EXPORT_FUNCTION(slHookSetFullscreenStatePost);
 
     SL_EXPORT_FUNCTION(slMTSSGGetState);
     SL_EXPORT_FUNCTION(slMTSSGSetOptions);
