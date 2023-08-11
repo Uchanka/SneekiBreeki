@@ -278,7 +278,6 @@ std::wstring D3D11::getDebugName(Resource res)
         {
             wname = name;
         }
-        pageable->Release();
     }
     else if(dxgi)
     {
@@ -297,8 +296,17 @@ std::wstring D3D11::getDebugName(Resource res)
         {
             wname = name;
         }
+    }
+
+    if (pageable)
+    {
+        pageable->Release();
+    }
+    if (dxgi)
+    {
         dxgi->Release();
     }
+
     return wname;
 }
 
