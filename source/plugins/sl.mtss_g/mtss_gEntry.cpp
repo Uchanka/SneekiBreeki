@@ -35,6 +35,7 @@ namespace mtssg
 {
 
 #define MTSSFG_DPF 0
+#define MTSSFG_NOT_TEST() SL_LOG_WARN("This Path Not Test, Maybe Not Work")
 
 struct UIStats
 {
@@ -43,6 +44,39 @@ struct UIStats
 	std::string viewport{};
 	std::string runtime{};
 	std::string vram{};
+};
+
+struct ClearingConstParamStruct
+{
+    sl::uint2 dimensions;
+    sl::float2 smoothing;
+    sl::float2 viewportSize;
+    sl::float2 viewportInv;
+};
+
+struct MVecParamStruct
+{
+    sl::float4x4 prevClipToClip;
+    sl::float4x4 clipToPrevClip;
+
+    sl::uint2 dimensions;
+    sl::float2 smoothing;
+    sl::float2 viewportSize;
+    sl::float2 viewportInv;
+};
+
+struct ResolutionConstParamStruct
+{
+    sl::uint2 dimensions;
+    sl::float2 smoothing;
+    sl::float2 viewportSize;
+    sl::float2 viewportInv;
+};
+
+enum class PresentApi : uint8_t
+{
+    Present,
+    Present1,
 };
 
 struct MTSSGContext
@@ -60,12 +94,14 @@ struct MTSSGContext
     Constants* commonConsts{};
     // Our tagged inputs
     CommonResource mvec{};
-    CommonResource depth{};
-    CommonResource hudLessColor{};
+    CommonResource currDepth{};
+    CommonResource currHudLessColor{};
     sl::chi::Resource reprojectedTip{};
     sl::chi::Resource reprojectedTop{};
     sl::chi::Resource prevDepth{};
     sl::chi::Resource prevHudLessColor{};
+    bool fgResourceInited = false;
+
 
     // Compute API
     RenderAPI platform = RenderAPI::eD3D11;
@@ -350,6 +386,7 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
 
 HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevice, HWND hWnd, const DXGI_SWAP_CHAIN_DESC1 * pDesc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC * pFulScreenDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
 {
+    MTSSFG_NOT_TEST();
     SL_LOG_INFO("slHookCreateSwapChainForHwnd");
 
     HRESULT result = S_OK;
@@ -361,6 +398,7 @@ HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevic
 
 HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * pDevice, IUnknown * pWindow, const DXGI_SWAP_CHAIN_DESC1 * pDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
 {
+    MTSSFG_NOT_TEST();
     SL_LOG_INFO("slHookCreateSwapChainForCoreWindow");
 
     HRESULT result = S_OK;
@@ -368,6 +406,237 @@ HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * 
     createSwapChainCommon(pDesc->Width, pDesc->Height, pDesc->Format);
 
     return result;
+}
+
+sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
+{
+    auto& ctx = (*mtssg::getContext());
+
+    if (ctx.fgResourceInited)
+    {
+        return sl::Result::eOk;
+    }
+
+    sl::Result ret = getTaggedResource(kBufferTypeHUDLessColor, ctx.currHudLessColor, viewportId);
+
+    if (ret == sl::Result::eOk)
+    {
+        ret = getTaggedResource(kBufferTypeDepth, ctx.currDepth, viewportId);
+    }
+
+    if (ret == sl::Result::eOk)
+    {
+        ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, viewportId);
+    }
+
+    if (ret != sl::Result::eOk)
+    {
+        SL_LOG_ERROR("Acqueire FG Tagged Resource Fail");
+        ctx.pCompute->destroyResource(ctx.currHudLessColor);
+        ctx.pCompute->destroyResource(ctx.currDepth);
+        ctx.pCompute->destroyResource(ctx.mvec);
+    }
+
+    if (ret == sl::Result::eOk)
+    {
+        auto status = ctx.pCompute->cloneResource(ctx.appSurface, ctx.referFrame, "refer frame");
+
+        if (status == sl::chi::ComputeStatus::eOk)
+        {
+            status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+        }
+
+        if (status == sl::chi::ComputeStatus::eOk)
+        {
+            status = ctx.pCompute->cloneResource(ctx.currDepth, ctx.prevDepth, "prev depth");
+        }
+
+        if (status == sl::chi::ComputeStatus::eOk)
+        {
+            status = ctx.pCompute->cloneResource(ctx.currHudLessColor, ctx.prevHudLessColor, "prev hudless color");
+        }
+
+        ret = (status == sl::chi::ComputeStatus::eOk) ? sl::Result::eOk : sl::Result::eErrorInvalidState;
+
+        if (ret != sl::Result::eOk)
+        {
+            SL_LOG_ERROR("Acqueire FG Clone Resource Fail");
+            ctx.pCompute->destroyResource(ctx.referFrame);
+            ctx.pCompute->destroyResource(ctx.prevDepth);
+            ctx.pCompute->destroyResource(ctx.prevHudLessColor);
+        }
+    }
+
+    if (ret == sl::Result::eOk)
+    {
+
+    }
+
+    return ret;
+}
+
+void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct *pCb, uint32_t grid[])
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+    CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.clearKernel));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.reprojectedTip));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.reprojectedTop));
+    CHI_VALIDATE(ctx.pCompute->bindConsts(2, 0, pCb, sizeof(*pCb), 1));
+
+    CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+}
+
+void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct *pCb, uint32_t grid[])
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
+
+    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.currHudLessColor));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
+
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 0, ctx.reprojectedTip));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 1, ctx.reprojectedTop));
+
+    CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
+
+    CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
+
+    CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, {}));
+}
+
+void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb, uint32_t grid[])
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.resolutionKernel));
+
+    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.currHudLessColor));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.reprojectedTip));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.reprojectedTop));
+
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generateFrame));
+
+    CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
+
+    CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+}
+
+void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, const DXGI_PRESENT_PARAMETERS* pPresentParameters, bool firstFrame, sl::mtssg::PresentApi api)
+{
+    auto& ctx = (*mtssg::getContext());
+
+    if (ctx.fgResourceInited == false || firstFrame)
+    {
+        if (api == sl::mtssg::PresentApi::Present)
+        {
+            swapChain->Present(SyncInterval, Flags);
+        }
+        else
+        {
+            static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
+        }
+        ctx.state.numFramesActuallyPresented++;
+    }
+    else
+    {
+        // Not first frame and resource init success, use current surface and refer frame to generate frame
+        common::EventData eventData;
+        eventData.id = 0;
+        eventData.frame = ctx.frameId;
+        auto getDataResult = common::getConsts(eventData, &ctx.commonConsts);
+        assert(getDataResult == common::GetDataResult::eFound);
+
+        sl::uint2 dimensions = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
+        sl::float2 smoothing = sl::float2(1.0f, 1.0f);
+        sl::float2 viewportSize = sl::float2(static_cast<float>(ctx.swapChainWidth), static_cast<float>(ctx.swapChainHeight));
+        sl::float2 viewportInv = sl::float2(1.0f / viewportSize.x, 1.0f / viewportSize.y);
+
+        uint32_t grid[] = { (ctx.swapChainWidth + 8 - 1) / 8, (ctx.swapChainHeight + 8 - 1) / 8, 1 };
+        //MTFKClearing
+        {
+            sl::mtssg::ClearingConstParamStruct lb;
+            lb.dimensions = dimensions;
+            lb.smoothing = smoothing;
+            lb.viewportSize = viewportSize;
+            lb.viewportInv = viewportInv;
+
+            processFrameGenerationClearing(&lb, grid);
+        }
+
+        //MTFKReprojection
+        {
+            sl::mtssg::MVecParamStruct cb;
+            memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
+            memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
+            cb.dimensions = dimensions;
+            cb.smoothing = sl::float2(1.0f, 1.0f);
+            cb.viewportSize = viewportSize;
+            cb.viewportInv = viewportInv;
+
+            processFrameGenerationReprojection(&cb, grid);
+        }
+
+        //MTFKResolution
+        {
+            sl::mtssg::ResolutionConstParamStruct rb;
+            rb.dimensions = dimensions;
+            rb.smoothing = sl::float2(1.0f, 1.0f);
+            rb.viewportSize = viewportSize;
+            rb.viewportInv = viewportInv;
+
+            processFrameGenerationResolution(&rb, grid);
+        }
+
+        // Copy current surface to refer frame
+        auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+        assert(status == sl::chi::ComputeStatus::eOk);
+
+        // Copy generate frame to surface present
+        status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generateFrame);
+        assert(status == sl::chi::ComputeStatus::eOk);
+        if (api == sl::mtssg::PresentApi::Present)
+        {
+            swapChain->Present(SyncInterval, Flags);
+        }
+        else
+        {
+            static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
+        }
+
+        ctx.state.numFramesActuallyPresented++;
+        ctx.state.status = MTSSGStatus::eOk;
+
+        // Copy refer frame to surface present
+        status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
+        assert(status == sl::chi::ComputeStatus::eOk);
+        if (api == sl::mtssg::PresentApi::Present)
+        {
+            swapChain->Present(SyncInterval, Flags);
+        }
+        else
+        {
+            static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
+        }
+        ctx.state.numFramesActuallyPresented++;
+    }
+
+    auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
+    assert(status == sl::chi::ComputeStatus::eOk);
+    status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
+    assert(status == sl::chi::ComputeStatus::eOk);
 }
 
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
@@ -382,184 +651,17 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
     else
     {
         Skip = true;
+        bool firstFrame = false;
         if (ctx.appSurface == nullptr)
         {
             ctx.pCompute->getSwapChainBuffer(swapChain, 0, ctx.appSurface);
+            firstFrame = true;
         }
 
-        sl::Result ret = getTaggedResource(kBufferTypeHUDLessColor, ctx.hudLessColor, 0);
-        assert(ret == sl::Result::eOk);
-        ret = getTaggedResource(kBufferTypeDepth, ctx.depth, 0);
-        assert(ret == sl::Result::eOk);
-        ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, 0);
-        assert(ret == sl::Result::eOk);
+        sl::Result result = acquireFrameGenerationResoruce(0);
+        ctx.fgResourceInited = (result == sl::Result::eOk) ? true : false;
 
-        // First frame skip generate, just copy and present
-        if (ctx.referFrame == nullptr)
-        {
-            auto status = ctx.pCompute->cloneResource(ctx.appSurface, ctx.referFrame, "refer frame");
-            assert(status == sl::chi::ComputeStatus::eOk);
-
-            status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
-            assert(status == sl::chi::ComputeStatus::eOk);
-
-            ctx.pCompute->cloneResource(ctx.depth, ctx.prevDepth, "prev depth");
-            assert(status == sl::chi::ComputeStatus::eOk);
-            ctx.pCompute->cloneResource(ctx.hudLessColor, ctx.prevHudLessColor, "prev hudless color");
-            assert(status == sl::chi::ComputeStatus::eOk);
-
-            swapChain->Present(SyncInterval, Flags);
-            ctx.state.numFramesActuallyPresented++;
-        }
-        else
-        {
-            // Not first frame, use current surface and refer frame to generate frame
-            common::EventData eventData;
-            eventData.id = 0;
-            eventData.frame = ctx.frameId;
-            auto getDataResult = common::getConsts(eventData, &ctx.commonConsts);
-            assert(getDataResult == common::GetDataResult::eFound);
-
-#if MTSSFG_DPF
-            SL_LOG_INFO("Frame %llu jitterOffset: %f, %f", ctx.frameId, ctx.commonConsts->jitterOffset.x, ctx.commonConsts->jitterOffset.y);
-
-            SL_LOG_INFO("ClipToPrevClip Row[0] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[0].x, ctx.commonConsts->clipToPrevClip.row[0].y, ctx.commonConsts->clipToPrevClip.row[0].z, ctx.commonConsts->clipToPrevClip.row[0].w);
-            SL_LOG_INFO("ClipToPrevClip Row[1] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[1].x, ctx.commonConsts->clipToPrevClip.row[1].y, ctx.commonConsts->clipToPrevClip.row[1].z, ctx.commonConsts->clipToPrevClip.row[1].w);
-            SL_LOG_INFO("ClipToPrevClip Row[2] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[2].x, ctx.commonConsts->clipToPrevClip.row[2].y, ctx.commonConsts->clipToPrevClip.row[2].z, ctx.commonConsts->clipToPrevClip.row[2].w);
-            SL_LOG_INFO("ClipToPrevClip Row[3] %f, %f, %f, %f", ctx.commonConsts->clipToPrevClip.row[3].x, ctx.commonConsts->clipToPrevClip.row[3].y, ctx.commonConsts->clipToPrevClip.row[3].z, ctx.commonConsts->clipToPrevClip.row[3].w);
-
-            SL_LOG_INFO("PrevClipToClip Row[0] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[0].x, ctx.commonConsts->prevClipToClip.row[0].y, ctx.commonConsts->prevClipToClip.row[0].z, ctx.commonConsts->prevClipToClip.row[0].w);
-            SL_LOG_INFO("PrevClipToClip Row[1] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[1].x, ctx.commonConsts->prevClipToClip.row[1].y, ctx.commonConsts->prevClipToClip.row[1].z, ctx.commonConsts->prevClipToClip.row[1].w);
-            SL_LOG_INFO("PrevClipToClip Row[2] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[2].x, ctx.commonConsts->prevClipToClip.row[2].y, ctx.commonConsts->prevClipToClip.row[2].z, ctx.commonConsts->prevClipToClip.row[2].w);
-            SL_LOG_INFO("PrevClipToClip Row[3] %f, %f, %f, %f", ctx.commonConsts->prevClipToClip.row[3].x, ctx.commonConsts->prevClipToClip.row[3].y, ctx.commonConsts->prevClipToClip.row[3].z, ctx.commonConsts->prevClipToClip.row[3].w);
-#endif
-
-            sl::uint2 dimensions = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
-            sl::float2 smoothing = sl::float2(1.0f, 1.0f);
-            sl::float2 viewportSize = sl::float2(static_cast<float>(ctx.swapChainWidth), static_cast<float>(ctx.swapChainHeight));
-            sl::float2 viewportInv = sl::float2(1.0f / viewportSize.x, 1.0f / viewportSize.y);
-
-            uint32_t grid[] = { (ctx.swapChainWidth + 8 - 1) / 8, (ctx.swapChainHeight + 8 - 1) / 8, 1 };
-            //MTFKClearing
-            {
-                struct ClearingConstParamStruct
-                {
-                    sl::uint2 dimensions;
-                    sl::float2 smoothing;
-                    sl::float2 viewportSize;
-                    sl::float2 viewportInv;
-                };
-                ClearingConstParamStruct lb;
-
-                lb.dimensions = dimensions;
-                lb.smoothing = smoothing;
-                lb.viewportSize = viewportSize;
-                lb.viewportInv = viewportInv;
-
-                CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
-
-                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.clearKernel));
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.reprojectedTip));
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.reprojectedTop));
-                CHI_VALIDATE(ctx.pCompute->bindConsts(2, 0, &lb, sizeof(lb), 1));
-
-                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
-            }
-
-            //MTFKReprojection
-            {
-                struct MVecParamStruct
-                {
-                    sl::float4x4 prevClipToClip;
-                    sl::float4x4 clipToPrevClip;
-
-                    sl::uint2 dimensions;
-                    sl::float2 smoothing;
-                    sl::float2 viewportSize;
-                    sl::float2 viewportInv;
-                };
-                MVecParamStruct cb;
-                memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
-                memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
-                cb.dimensions = dimensions;
-                cb.smoothing = sl::float2(1.0f, 1.0f);
-                cb.viewportSize = viewportSize;
-                cb.viewportInv = viewportInv;
-
-                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
-
-                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
-
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 0, ctx.reprojectedTip));
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 1, ctx.reprojectedTop));
-
-                CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, &cb, sizeof(cb), 1));
-                
-                CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
-
-                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
-
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, {}));
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, {}));
-            }
-
-            //MTFKResolution
-            {
-                struct ResolutionConstParamStruct
-                {
-                    sl::uint2 dimensions;
-                    sl::float2 smoothing;
-                    sl::float2 viewportSize;
-                    sl::float2 viewportInv;
-                };
-                ResolutionConstParamStruct rb;
-                rb.dimensions = dimensions;
-                rb.smoothing = sl::float2(1.0f, 1.0f);
-                rb.viewportSize = viewportSize;
-                rb.viewportInv = viewportInv;
-
-                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.resolutionKernel));
-
-                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.reprojectedTip));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.reprojectedTop));
-
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generateFrame));
-
-                CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, &rb, sizeof(rb), 1));
-
-                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
-            }
-
-            // Copy current surface to refer frame
-            auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
-            assert(status == sl::chi::ComputeStatus::eOk);
-
-            // Copy generate frame to surface present
-            status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generateFrame);
-            assert(status == sl::chi::ComputeStatus::eOk);
-            swapChain->Present(SyncInterval, Flags);
-            ctx.state.numFramesActuallyPresented++;
-            ctx.state.status = MTSSGStatus::eOk;
-
-            // Copy refer frame to surface present
-            status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
-            assert(status == sl::chi::ComputeStatus::eOk);
-            swapChain->Present(SyncInterval, Flags);
-            ctx.state.numFramesActuallyPresented++;
-        }
-
-        auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.depth);
-        assert(status == sl::chi::ComputeStatus::eOk);
-        status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.hudLessColor);
-        assert(status == sl::chi::ComputeStatus::eOk);
+        presentCommon(swapChain, SyncInterval, Flags, nullptr, firstFrame, sl::mtssg::PresentApi::Present);
     }
 
     ctx.frameId++;
@@ -568,9 +670,34 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
 
 HRESULT slHookPresent1(IDXGISwapChain * SwapChain, UINT SyncInterval, UINT PresentFlags, const DXGI_PRESENT_PARAMETERS * pPresentParameters, bool& Skip)
 {
+    MTSSFG_NOT_TEST();
     SL_LOG_INFO("slHookPresent1");
 
     HRESULT result = S_OK;
+
+    auto& ctx = (*mtssg::getContext());
+    if (ctx.options.mode == MTSSGMode::eOff)
+    {
+        SL_LOG_INFO("MTSS-G Mode is Off, present return directly.");
+        Skip = false;
+    }
+    else
+    {
+        Skip = true;
+        bool firstFrame = false;
+        if (ctx.appSurface == nullptr)
+        {
+            ctx.pCompute->getSwapChainBuffer(SwapChain, 0, ctx.appSurface);
+            firstFrame = true;
+        }
+
+        sl::Result result = acquireFrameGenerationResoruce(0);
+        ctx.fgResourceInited = (result == sl::Result::eOk) ? true : false;
+
+        presentCommon(SwapChain, SyncInterval, PresentFlags, pPresentParameters, firstFrame, sl::mtssg::PresentApi::Present);
+    }
+
+    ctx.frameId++;
 
     return result;
 }
