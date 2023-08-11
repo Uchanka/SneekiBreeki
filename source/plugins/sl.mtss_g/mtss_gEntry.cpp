@@ -79,6 +79,7 @@ struct MTSSGContext
 
     uint32_t swapChainWidth{};
     uint32_t swapChainHeight{};
+    DXGI_FORMAT swapChainFormat{};
 
     sl::chi::Resource appSurface{};
     sl::chi::Resource generateFrame{};
@@ -294,27 +295,55 @@ void slOnPluginShutdown()
     plugin::onShutdown(api::getContext());
 }
 
+void createSwapChainCommon(uint32_t width, uint32_t height, DXGI_FORMAT format)
+{
+    auto& ctx = (*mtssg::getContext());
+
+    if ((ctx.generateFrame == nullptr)  || 
+        (ctx.swapChainWidth != width)   ||
+        (ctx.swapChainHeight != height) ||
+        (ctx.swapChainFormat != format))
+    {
+        ctx.swapChainWidth = width;
+        ctx.swapChainHeight = height;
+
+        chi::ResourceDescription desc;
+        desc.width = width;
+        desc.height = height;
+        desc.nativeFormat = format;
+
+        sl::chi::ComputeStatus status = sl::chi::ComputeStatus::eOk;
+        if (ctx.generateFrame != nullptr)
+        {
+            status = ctx.pCompute->destroyResource(ctx.generateFrame);
+            assert(status == sl::chi::ComputeStatus::eOk);
+        }
+        status = ctx.pCompute->createTexture2D(desc, ctx.generateFrame, "generate frame");
+        assert(status == sl::chi::ComputeStatus::eOk);
+
+        if (ctx.reprojectedTip != nullptr)
+        {
+            status = ctx.pCompute->destroyResource(ctx.reprojectedTip);
+            assert(status == sl::chi::ComputeStatus::eOk);
+            status = ctx.pCompute->destroyResource(ctx.reprojectedTop);
+            assert(status == sl::chi::ComputeStatus::eOk);
+        }
+        desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        status = ctx.pCompute->createTexture2D(desc, ctx.reprojectedTip, "reprojectedTip");
+        assert(status == sl::chi::ComputeStatus::eOk);
+        status = ctx.pCompute->createTexture2D(desc, ctx.reprojectedTop, "reprojectedTop");
+        assert(status == sl::chi::ComputeStatus::eOk);
+    }
+}
+
 HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc, IDXGISwapChain** ppSwapChain, bool& Skip)
 {
     SL_LOG_INFO("CreateSwapChain Width: %u, Height: %u, Buffer Count: %u", pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferCount);
 
     HRESULT result = S_OK;
 
-    auto& ctx = (*mtssg::getContext());
-    ctx.swapChainWidth  = pDesc->BufferDesc.Width;
-    ctx.swapChainHeight = pDesc->BufferDesc.Height;
+    createSwapChainCommon(pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferDesc.Format);
 
-    pDesc->BufferCount = 2;
-
-	chi::ResourceDescription desc;
-	desc.width = pDesc->BufferDesc.Width;
-	desc.height = pDesc->BufferDesc.Height;
-	desc.nativeFormat = pDesc->BufferDesc.Format;
-	ctx.pCompute->createTexture2D(desc, ctx.generateFrame, "generate frame");
-
-    desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    ctx.pCompute->createTexture2D(desc, ctx.reprojectedTip, "reprojectedTip");
-    ctx.pCompute->createTexture2D(desc, ctx.reprojectedTop, "reprojectedTop");
     return result;
 }
 
@@ -325,6 +354,8 @@ HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevic
 
     HRESULT result = S_OK;
 
+    createSwapChainCommon(pDesc->Width, pDesc->Height, pDesc->Format);
+
     return result;
 }
 
@@ -333,6 +364,8 @@ HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * 
     SL_LOG_INFO("slHookCreateSwapChainForCoreWindow");
 
     HRESULT result = S_OK;
+
+    createSwapChainCommon(pDesc->Width, pDesc->Height, pDesc->Format);
 
     return result;
 }
