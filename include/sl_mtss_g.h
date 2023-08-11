@@ -3,11 +3,6 @@
 #pragma once
 
 #include "sl_consts.h"
-#include <vector>
-
-// Forward declarations matching MS and VK specs
-using HRESULT = long;
-enum VkResult : int;
 
 namespace sl
 {
@@ -25,25 +20,19 @@ enum class MTSSGMode : uint32_t
 enum class MTSSGFlags : uint32_t
 {
     eShowOnlyInterpolatedFrame = 1 << 0,
-    eDynamicResolutionEnabled = 1 << 1,
-    eRequestVRAMEstimate = 1 << 2
 };
 
 // Adds various useful operators for our enum
 SL_ENUM_OPERATORS_32(MTSSGFlags)
 
-// {FAC5F1CB-2DFD-4F36-A1E6-3A9E865256C5}
-SL_STRUCT(MTSSGOptions, StructType({ 0xfac5f1cb, 0x2dfd, 0x4f36, { 0xa1, 0xe6, 0x3a, 0x9e, 0x86, 0x52, 0x56, 0xc5 } }), kStructVersion1)
+// {d7bf2851-c4c0-407d-a556-b5039b2754f9}
+SL_STRUCT(MTSSGOptions, StructType({ 0xd7bf2851, 0xc4c0, 0x407d, { 0xa5, 0x56, 0xb5, 0x03, 0x9b, 0x27, 0x54, 0xf9 } }), kStructVersion1)
     //! Specifies which mode should be used.
     MTSSGMode mode = MTSSGMode::eOff;
     //! Must be 1
     uint32_t numFramesToGenerate = 1;
     //! Optional - Flags used to enable or disable certain functionality
     MTSSGFlags flags{};
-    //! Optional - Dynamic resolution optimal width (used only if eDynamicResolutionEnabled is set)
-    uint32_t dynamicResWidth{};
-    //! Optional - Dynamic resolution optimal height (used only if eDynamicResolutionEnabled is set)
-    uint32_t dynamicResHeight{};
     //! Optional - Expected number of buffers in the swap-chain
     uint32_t numBackBuffers{};
     //! Optional - Expected width of the input render targets (depth, motion-vector buffers etc)
@@ -70,28 +59,23 @@ SL_STRUCT(MTSSGOptions, StructType({ 0xfac5f1cb, 0x2dfd, 0x4f36, { 0xa1, 0xe6, 0
     //! IMPORTANT: New members go here or if optional can be chained in a new struct, see sl_struct.h for details
 };
 
-
 enum class MTSSGStatus : uint32_t
 {
     //! Everything is working as expected
     eOk = 0,
     //! Output resolution (size of the back buffers in the swap-chain) is too low
     eFailResolutionTooLow = 1 << 0,
-    //! Reflex is not active while MTSS-G is running, Reflex must be turned on when MTSS-G is on
-    eFailReflexNotDetectedAtRuntime = 1 << 1,
-    //! HDR format not supported, see MTSS-G programming guide for more details
-    eFailHDRFormatNotSupported = 1 << 2,
+    //! Some tag resources are invalid, see programming guide for more details
+    eFailTagResourcesInvalid = 1 << 1,
     //! Some constants are invalid, see programming guide for more details
-    eFailCommonConstantsInvalid = 1 << 3,
-    //! D3D integrations must use SwapChain::GetCurrentBackBufferIndex API
-    eFailGetCurrentBackBufferIndexNotCalled = 1 << 4
+    eFailCommonConstantsInvalid = 1 << 2,
 };
 
 // Adds various useful operators for our enum
 SL_ENUM_OPERATORS_32(MTSSGStatus)
 
-// {CC8AC8E1-A179-44F5-97FA-E74112F9BC61}
-SL_STRUCT(MTSSGState, StructType({ 0xcc8ac8e1, 0xa179, 0x44f5, { 0x97, 0xfa, 0xe7, 0x41, 0x12, 0xf9, 0xbc, 0x61 } }), kStructVersion1)
+// {66cbcc7c-2312-4f28-a2e9-5a5563267158}
+SL_STRUCT(MTSSGState, StructType({ 0x66cbcc7c, 0x2312, 0x4f28, { 0xa2, 0xe9, 0x5a, 0x55, 0x63, 0x26, 0x71, 0x58 } }), kStructVersion1)
     //! Specifies the amount of memory expected to be used
     uint64_t estimatedVRAMUsageInBytes{};
     //! Specifies current status of MTSS-G
