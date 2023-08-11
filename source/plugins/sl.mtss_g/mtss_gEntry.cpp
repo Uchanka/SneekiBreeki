@@ -31,7 +31,7 @@ using json = nlohmann::json;
 namespace sl
 {
 
-namespace tmpl
+namespace mtssg
 {
 
 #define MTSSFG_DPF 0
@@ -134,12 +134,12 @@ static const char* JSON = R"json(
 )json";
 
 //! Define our plugin, make sure to update version numbers in versions.h
-SL_PLUGIN_DEFINE("sl.mtss_g", Version(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH), Version(0, 0, 1), JSON, updateEmbeddedJSON, tmpl, MTSSGContext)
+SL_PLUGIN_DEFINE("sl.mtss_g", Version(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH), Version(0, 0, 1), JSON, updateEmbeddedJSON, mtssg, MTSSGContext)
 
 //! Set constants for our plugin (if any, this is optional and should be thread safe)
 Result slSetConstants(const void* data, uint32_t frameIndex, uint32_t id)
 {
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
 
     return Result::eOk;
 }
@@ -166,7 +166,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
 {
     SL_PLUGIN_COMMON_STARTUP();
 
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
     ctx.state.minWidthOrHeight = 1024;
 
     auto parameters = api::getContext()->parameters;
@@ -244,7 +244,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
 
 void slOnPluginShutdown()
 {
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
 
     ctx.pCompute->destroyResource(ctx.generateFrame);
     ctx.pCompute->destroyResource(ctx.referFrame);
@@ -270,7 +270,7 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
 
     HRESULT hr = S_OK;
 
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
     ctx.swapChainWidth  = pDesc->BufferDesc.Width;
     ctx.swapChainHeight = pDesc->BufferDesc.Height;
 
@@ -302,7 +302,7 @@ UINT slHookGetCurrentBackBufferIndex(IDXGISwapChain* SwapChain, bool& Skip)
 
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
 {
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
 
     if (ctx.options.mode == MTSSGMode::eOff)
     {
@@ -521,7 +521,7 @@ void updateEmbeddedJSON(json& config)
 
 sl::Result slMTSSGGetState(const sl::ViewportHandle& viewport, sl::MTSSGState& state, const sl::MTSSGOptions* options)
 {
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
 
     state = ctx.state;
     ctx.state.numFramesActuallyPresented = 0;
@@ -531,7 +531,7 @@ sl::Result slMTSSGGetState(const sl::ViewportHandle& viewport, sl::MTSSGState& s
 
 sl::Result slMTSSGSetOptions(const sl::ViewportHandle& viewport, const sl::MTSSGOptions& options)
 {
-    auto& ctx = (*tmpl::getContext());
+    auto& ctx = (*mtssg::getContext());
 
     ctx.options = options;
 
