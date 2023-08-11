@@ -331,7 +331,7 @@ void slOnPluginShutdown()
     plugin::onShutdown(api::getContext());
 }
 
-void createSwapChainCommon(uint32_t width, uint32_t height, DXGI_FORMAT format)
+void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
 {
     auto& ctx = (*mtssg::getContext());
 
@@ -340,28 +340,39 @@ void createSwapChainCommon(uint32_t width, uint32_t height, DXGI_FORMAT format)
         (ctx.swapChainHeight != height) ||
         (ctx.swapChainFormat != format))
     {
-        ctx.swapChainWidth = width;
-        ctx.swapChainHeight = height;
+        void* pOldFrame = ctx.generateFrame;
+        uint32_t oldWidth = ctx.swapChainWidth;
+        uint32_t oldHeight = ctx.swapChainHeight;
+        uint32_t oldFormat = ctx.swapChainFormat;
+
+        sl::chi::ComputeStatus status = sl::chi::ComputeStatus::eOk;
+        if (ctx.generateFrame != nullptr)
+        {
+            status = ctx.pCompute->destroyResource(ctx.generateFrame, 0);
+            ctx.generateFrame = nullptr;
+            assert(status == sl::chi::ComputeStatus::eOk);
+        }
 
         chi::ResourceDescription desc;
         desc.width = width;
         desc.height = height;
         desc.nativeFormat = format;
-
-        sl::chi::ComputeStatus status = sl::chi::ComputeStatus::eOk;
-        if (ctx.generateFrame != nullptr)
-        {
-            status = ctx.pCompute->destroyResource(ctx.generateFrame);
-            assert(status == sl::chi::ComputeStatus::eOk);
-        }
         status = ctx.pCompute->createTexture2D(desc, ctx.generateFrame, "generate frame");
         assert(status == sl::chi::ComputeStatus::eOk);
 
+        ctx.swapChainWidth = width;
+        ctx.swapChainHeight = height;
+        ctx.swapChainFormat = format;
+        SL_LOG_INFO("createGeneratedFrame width: %u -> %u, height: %u -> %u, format: %u -> %u, pFrame: %p -> %p", oldWidth, width, oldHeight, height,
+            static_cast<uint32_t>(oldFormat), static_cast<uint32_t>(format), pOldFrame, ctx.generateFrame);
+
         if (ctx.reprojectedTip != nullptr)
         {
-            status = ctx.pCompute->destroyResource(ctx.reprojectedTip);
+            status = ctx.pCompute->destroyResource(ctx.reprojectedTip, 0);
+            ctx.reprojectedTip = nullptr;
             assert(status == sl::chi::ComputeStatus::eOk);
-            status = ctx.pCompute->destroyResource(ctx.reprojectedTop);
+            status = ctx.pCompute->destroyResource(ctx.reprojectedTop, 0);
+            ctx.reprojectedTop = nullptr;
             assert(status == sl::chi::ComputeStatus::eOk);
         }
         desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -378,7 +389,7 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
 
     HRESULT result = S_OK;
 
-    createSwapChainCommon(pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferDesc.Format);
+    createGeneratedFrame(pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferDesc.Format);
 
     return result;
 }
@@ -391,7 +402,7 @@ HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevic
 
     HRESULT result = S_OK;
 
-    createSwapChainCommon(pDesc->Width, pDesc->Height, pDesc->Format);
+    createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
 
     return result;
 }
@@ -403,7 +414,7 @@ HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * 
 
     HRESULT result = S_OK;
 
-    createSwapChainCommon(pDesc->Width, pDesc->Height, pDesc->Format);
+    createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
 
     return result;
 }
@@ -432,9 +443,9 @@ sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
     if (ret != sl::Result::eOk)
     {
         SL_LOG_ERROR("Acqueire FG Tagged Resource Fail");
-        ctx.pCompute->destroyResource(ctx.currHudLessColor);
-        ctx.pCompute->destroyResource(ctx.currDepth);
-        ctx.pCompute->destroyResource(ctx.mvec);
+        ctx.pCompute->destroyResource(ctx.currHudLessColor, 0);
+        ctx.pCompute->destroyResource(ctx.currDepth, 0);
+        ctx.pCompute->destroyResource(ctx.mvec, 0);
     }
 
     if (ret == sl::Result::eOk)
@@ -461,9 +472,9 @@ sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
         if (ret != sl::Result::eOk)
         {
             SL_LOG_ERROR("Acqueire FG Clone Resource Fail");
-            ctx.pCompute->destroyResource(ctx.referFrame);
-            ctx.pCompute->destroyResource(ctx.prevDepth);
-            ctx.pCompute->destroyResource(ctx.prevHudLessColor);
+            ctx.pCompute->destroyResource(ctx.referFrame, 0);
+            ctx.pCompute->destroyResource(ctx.prevDepth, 0);
+            ctx.pCompute->destroyResource(ctx.prevHudLessColor, 0);
         }
     }
 
@@ -473,6 +484,15 @@ sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
     }
 
     return ret;
+}
+
+void destroyFrameGenerationResource()
+{
+    auto& ctx = (*mtssg::getContext());
+
+    ctx.pCompute->destroyResource(ctx.referFrame, 0);
+    ctx.pCompute->destroyResource(ctx.prevDepth, 0);
+    ctx.pCompute->destroyResource(ctx.prevHudLessColor, 0);
 }
 
 void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct *pCb, uint32_t grid[])
@@ -694,7 +714,7 @@ HRESULT slHookPresent1(IDXGISwapChain * SwapChain, UINT SyncInterval, UINT Prese
         sl::Result result = acquireFrameGenerationResoruce(0);
         ctx.fgResourceInited = (result == sl::Result::eOk) ? true : false;
 
-        presentCommon(SwapChain, SyncInterval, PresentFlags, pPresentParameters, firstFrame, sl::mtssg::PresentApi::Present);
+        presentCommon(SwapChain, SyncInterval, PresentFlags, pPresentParameters, firstFrame, sl::mtssg::PresentApi::Present1);
     }
 
     ctx.frameId++;
@@ -708,6 +728,13 @@ HRESULT slHookResizeBuffersPre(IDXGISwapChain* SwapChain, UINT BufferCount, UINT
 
     HRESULT result = S_OK;
 
+    auto& ctx = (*mtssg::getContext());
+
+    ctx.pCompute->destroyResource(ctx.appSurface, 0);
+    ctx.appSurface = nullptr;
+
+    createGeneratedFrame(Width, Height, NewFormat);
+
     return result;
 }
 
@@ -716,6 +743,11 @@ HRESULT slHookResizeBuffersPost(IDXGISwapChain* SwapChain, UINT BufferCount, UIN
     SL_LOG_INFO("slHookResizeBuffersPost");
 
     HRESULT result = S_OK;
+
+    auto& ctx = (*mtssg::getContext());
+
+    destroyFrameGenerationResource();
+    ctx.fgResourceInited = false;
 
     return result;
 }
