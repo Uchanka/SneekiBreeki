@@ -586,15 +586,19 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         // Copy refer frame to surface present
         status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
         assert(status == sl::chi::ComputeStatus::eOk);
-        if (api == sl::mtssg::PresentApi::Present)
+        bool showRenderFrame = ((ctx.options.flags & MTSSGFlags::eShowOnlyInterpolatedFrame) == 0);
+        if (showRenderFrame)
         {
-            swapChain->Present(SyncInterval, Flags);
+            if (api == sl::mtssg::PresentApi::Present)
+            {
+                swapChain->Present(SyncInterval, Flags);
+            }
+            else
+            {
+                static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
+            }
+            ctx.state.numFramesActuallyPresented++;
         }
-        else
-        {
-            static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
-        }
-        ctx.state.numFramesActuallyPresented++;
     }
 
     auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
