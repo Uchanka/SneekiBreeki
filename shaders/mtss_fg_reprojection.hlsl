@@ -1,15 +1,15 @@
 // Copyright (c) 2023 Moore Threads Technology Co. Ltd. All rights reserved.
 #include "mtss_common.hlsli"
 
-Texture2D<float3> colorTextureTip;
-Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTip;
 Texture2D<float> depthTextureTop;
 
 Texture2D<float2> motionVector;
 
-RWTexture2D<float4> reprojectedTip;
-RWTexture2D<float4> reprojectedTop;
+RWTexture2D<uint> motionReprojectedTipX;
+RWTexture2D<uint> motionReprojectedTipY;
+RWTexture2D<uint> motionReprojectedTopX;
+RWTexture2D<uint> motionReprojectedTopY;
 
 //#define UNREAL_ENGINE_COORDINATES
 #define NVRHI_DONUT_COORDINATES

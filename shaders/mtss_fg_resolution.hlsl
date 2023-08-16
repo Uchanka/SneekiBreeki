@@ -2,12 +2,12 @@
 #include "mtss_common.hlsli"
 
 Texture2D<float3> colorTextureTip;
-Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTip;
+Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTop;
 
-Texture2D<float4> reprojectedTip;
-Texture2D<float4> reprojectedTop;
+Texture2D<float4> motionUnprojected;
+Texture2D<float4> motionReprojected;
 
 RWTexture2D<float4> outputTexture;
 
