@@ -196,7 +196,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     SL_PLUGIN_COMMON_STARTUP();
 
     auto& ctx = (*mtssg::getContext());
-    ctx.state.minWidthOrHeight = 1024;
+    ctx.state.minWidthOrHeight = 128;
     ctx.state.status = MTSSGStatus::eOk;
 
     auto parameters = api::getContext()->parameters;
