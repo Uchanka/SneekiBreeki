@@ -1,21 +1,17 @@
 /* Copyright (c) 2020-2023 MooreThreads Coporation. All rights reserved. */
 
 #include <dxgi1_6.h>
-#include <future>
 #include <assert.h>
 
 #include "include/sl.h"
 #include "include/sl_consts.h"
 #include "include/sl_mtss_g.h"
-#include "source/core/sl.api/internal.h"
 #include "source/core/sl.log/log.h"
 #include "source/core/sl.plugin/plugin.h"
 #include "source/core/sl.param/parameters.h"
 #include "source/platforms/sl.chi/compute.h"
 #include "source/plugins/sl.template/versions.h"
 #include "source/plugins/sl.common/commonInterface.h"
-#include "source/plugins/sl.imgui/imgui.h"
-#include "external/nvapi/nvapi.h"
 #include "external/json/include/nlohmann/json.hpp"
 #include "_artifacts/gitVersion.h"
 //#include "_artifacts/shaders/mtss_fg_pushing_cs.h"
@@ -23,8 +19,6 @@
 #include "_artifacts/shaders/mtss_fg_clearing_cs.h"
 #include "_artifacts/shaders/mtss_fg_reprojection_cs.h"
 #include "_artifacts/shaders/mtss_fg_resolution_cs.h"
-
-#include <d3d11.h>
 
 using json = nlohmann::json;
 
@@ -262,7 +256,6 @@ void slOnPluginShutdown()
     CHI_VALIDATE(destroyResource(&ctx.reprojectedTip));
     CHI_VALIDATE(destroyResource(&ctx.reprojectedTop));
     CHI_VALIDATE(destroyResource(&ctx.appSurface));
-    CHI_VALIDATE(destroyResource(&ctx.generateFrame));
 
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.clearKernel));
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.reprojectionKernel));
@@ -279,6 +272,69 @@ bool IsContextStatusOk()
     auto& ctx = (*mtssg::getContext());
 
     return ctx.state.status == MTSSGStatus::eOk;
+}
+
+uint32_t calcEstimatedVRAMUsageInBytes()
+{
+    auto& ctx = (*mtssg::getContext());
+
+    uint32_t vRAMUsageInBytes = 0;
+
+    {
+        sl::chi::Format generatedFrameFormat{};
+        CHI_VALIDATE(ctx.pCompute->getFormat(ctx.swapChainFormat, generatedFrameFormat));
+        size_t generatedFrameBpp{};
+        CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(generatedFrameFormat, generatedFrameBpp));
+        // We have ctx.generateFrame and prev frame copy(ctx.referFrame)
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * generatedFrameBpp * 2;
+    }
+
+    {
+        sl::chi::Format reprojectedFormat{};
+        CHI_VALIDATE(ctx.pCompute->getFormat(ctx.reprojectedTip->nativeFormat, reprojectedFormat));
+        size_t reprojectedBpp{};
+        CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(reprojectedFormat, reprojectedBpp));
+        // We have ctx.reprojectedTip and ctx.reprojectedTop
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp * 2;
+    }
+
+    if (ctx.fgResourceInited)
+    {
+        {
+            sl::chi::Format depthFromat{};
+            CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevDepth->nativeFormat, depthFromat));
+            size_t depthBpp{};
+            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(depthFromat, depthBpp));
+            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
+        }
+
+        {
+            sl::chi::Format hudLessColorFormat{};
+            CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevHudLessColor->nativeFormat, hudLessColorFormat));
+            size_t hudLessColorBpp{};
+            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
+            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
+        }
+    }
+    else
+    {
+        // If not inited, we assume resource format and calc vram
+        {
+            size_t depthBpp{};
+            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(sl::chi::Format::eFormatD32S32, depthBpp));
+            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
+        }
+
+        {
+            sl::chi::Format hudLessColorFormat{};
+            CHI_VALIDATE(ctx.pCompute->getFormat(ctx.swapChainFormat, hudLessColorFormat));
+            size_t hudLessColorBpp{};
+            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
+            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
+        }
+    }
+
+    return vRAMUsageInBytes;
 }
 
 void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
@@ -328,6 +384,9 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
         assert(status == sl::chi::ComputeStatus::eOk);
         status = ctx.pCompute->createTexture2D(desc, ctx.reprojectedTop, "reprojectedTop");
         assert(status == sl::chi::ComputeStatus::eOk);
+
+        ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
+        SL_LOG_INFO("estimatedVRAMUsageInBytes: %llu Bytes(%u MB)", ctx.state.estimatedVRAMUsageInBytes, ctx.state.estimatedVRAMUsageInBytes / 1024 / 1024);
     }
 }
 
@@ -426,6 +485,13 @@ sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
     {
         ctx.state.status = MTSSGStatus::eOk;
     }
+
+    ctx.fgResourceInited = (ret == sl::Result::eOk) ? true : false;
+    if (ctx.fgResourceInited)
+    {
+        ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
+    }
+
 
     return ret;
 }
@@ -627,7 +693,7 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
         }
 
         sl::Result result = acquireFrameGenerationResoruce(0);
-        ctx.fgResourceInited = (result == sl::Result::eOk) ? true : false;
+        assert(result == sl::Result::eOk);
 
         presentCommon(swapChain, SyncInterval, Flags, nullptr, firstFrame, sl::mtssg::PresentApi::Present);
     }
@@ -660,7 +726,7 @@ HRESULT slHookPresent1(IDXGISwapChain * SwapChain, UINT SyncInterval, UINT Prese
         }
 
         sl::Result result = acquireFrameGenerationResoruce(0);
-        ctx.fgResourceInited = (result == sl::Result::eOk) ? true : false;
+        assert(result == sl::Result::eOk);
 
         presentCommon(SwapChain, SyncInterval, PresentFlags, pPresentParameters, firstFrame, sl::mtssg::PresentApi::Present1);
     }
