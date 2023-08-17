@@ -168,6 +168,12 @@ static const char* JSON = R"json(
         },
         {
             "class": "IDXGISwapChain",
+            "target" : "ResizeBuffers1",
+            "replacement" : "slHookResizeBuffers1Pre",
+            "base" : "before"
+        },
+        {
+            "class": "IDXGISwapChain",
             "target" : "SetFullscreenState",
             "replacement" : "slHookSetFullscreenStatePre",
             "base" : "before"
@@ -243,19 +249,17 @@ void destroyFrameGenerationResource()
     CHI_VALIDATE(destroyResource(&ctx.referFrame));
     CHI_VALIDATE(destroyResource(&ctx.prevDepth));
     CHI_VALIDATE(destroyResource(&ctx.prevHudLessColor));
+    CHI_VALIDATE(destroyResource(&ctx.generateFrame));
+    CHI_VALIDATE(destroyResource(&ctx.appSurface));
+    CHI_VALIDATE(destroyResource(&ctx.reprojectedTip));
+    CHI_VALIDATE(destroyResource(&ctx.reprojectedTop));
 }
 
 void slOnPluginShutdown()
 {
     auto& ctx = (*mtssg::getContext());
 
-    CHI_VALIDATE(destroyResource(&ctx.generateFrame));
-    CHI_VALIDATE(destroyResource(&ctx.referFrame));
-    CHI_VALIDATE(destroyResource(&ctx.prevDepth));
-    CHI_VALIDATE(destroyResource(&ctx.prevHudLessColor));
-    CHI_VALIDATE(destroyResource(&ctx.reprojectedTip));
-    CHI_VALIDATE(destroyResource(&ctx.reprojectedTop));
-    CHI_VALIDATE(destroyResource(&ctx.appSurface));
+    destroyFrameGenerationResource();
 
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.clearKernel));
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.reprojectionKernel));
@@ -362,7 +366,8 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
         uint32_t oldHeight = ctx.swapChainHeight;
         uint32_t oldFormat = ctx.swapChainFormat;
 
-        CHI_VALIDATE(destroyResource(&ctx.generateFrame));
+        destroyFrameGenerationResource();
+        ctx.fgResourceInited = false;
 
         chi::ResourceDescription desc;
         desc.width = width;
@@ -377,8 +382,6 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
         SL_LOG_INFO("createGeneratedFrame width: %u -> %u, height: %u -> %u, format: %u -> %u, pFrame: %p -> %p", oldWidth, width, oldHeight, height,
             static_cast<uint32_t>(oldFormat), static_cast<uint32_t>(format), pOldFrame, ctx.generateFrame);
 
-        CHI_VALIDATE(destroyResource(&ctx.reprojectedTip));
-        CHI_VALIDATE(destroyResource(&ctx.reprojectedTop));
         desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
         status = ctx.pCompute->createTexture2D(desc, ctx.reprojectedTip, "reprojectedTip");
         assert(status == sl::chi::ComputeStatus::eOk);
@@ -491,7 +494,6 @@ sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
     {
         ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
     }
-
 
     return ret;
 }
@@ -667,6 +669,10 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         }
     }
 
+    uint32_t frame = 0;
+    CHI_VALIDATE(ctx.pCompute->getFinishedFrameIndex(frame));
+    SL_LOG_INFO("MTSS-G Finishied Frame Index: %u", frame);
+
     auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
     assert(status == sl::chi::ComputeStatus::eOk);
     status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
@@ -742,10 +748,6 @@ HRESULT slHookResizeBuffersPre(IDXGISwapChain* SwapChain, UINT BufferCount, UINT
 
     HRESULT result = S_OK;
 
-    auto& ctx = (*mtssg::getContext());
-
-    CHI_VALIDATE(destroyResource(&ctx.appSurface));
-
     createGeneratedFrame(Width, Height, NewFormat);
 
     return result;
@@ -757,17 +759,19 @@ HRESULT slHookResizeBuffersPost(IDXGISwapChain* SwapChain, UINT BufferCount, UIN
 
     HRESULT result = S_OK;
 
-    auto& ctx = (*mtssg::getContext());
-
-    destroyFrameGenerationResource();
-    ctx.fgResourceInited = false;
-
     return result;
+}
+
+HRESULT slHookResizeBuffers1Pre(IDXGISwapChain* SwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT Format, UINT SwapChainFlags, const UINT* pCreationNodeMask, IUnknown* const* ppPresentQueue, bool& Skip)
+{
+    SL_LOG_INFO("slHookResizeBuffers1Pre");
+
+    return S_OK;
 }
 
 HRESULT slHookSetFullscreenStatePre(IDXGISwapChain * SwapChain, BOOL pFullscreen, IDXGIOutput * ppTarget, bool& Skip)
 {
-    SL_LOG_INFO("slHookSetFullscreenStatePre");
+    SL_LOG_INFO("slHookSetFullscreenStatePre fullscreen:%s", pFullscreen ? "YES" : "NO");
 
     HRESULT result = S_OK;
 
@@ -776,7 +780,7 @@ HRESULT slHookSetFullscreenStatePre(IDXGISwapChain * SwapChain, BOOL pFullscreen
 
 HRESULT slHookSetFullscreenStatePost(IDXGISwapChain* SwapChain, BOOL pFullscreen, IDXGIOutput* ppTarget)
 {
-    SL_LOG_INFO("slHookSetFullscreenStatePost");
+    SL_LOG_INFO("slHookSetFullscreenStatePost fullscreen:%s", pFullscreen ? "YES" : "NO");
 
     HRESULT result = S_OK;
 
@@ -854,6 +858,7 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     SL_EXPORT_FUNCTION(slHookPresent1);
     SL_EXPORT_FUNCTION(slHookResizeBuffersPre);
     SL_EXPORT_FUNCTION(slHookResizeBuffersPost);
+    SL_EXPORT_FUNCTION(slHookResizeBuffers1Pre);
     SL_EXPORT_FUNCTION(slHookSetFullscreenStatePre);
     SL_EXPORT_FUNCTION(slHookSetFullscreenStatePost);
 
