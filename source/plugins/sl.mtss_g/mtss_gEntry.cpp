@@ -669,10 +669,6 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         }
     }
 
-    uint32_t frame = 0;
-    CHI_VALIDATE(ctx.pCompute->getFinishedFrameIndex(frame));
-    SL_LOG_INFO("MTSS-G Finishied Frame Index: %u", frame);
-
     auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
     assert(status == sl::chi::ComputeStatus::eOk);
     status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
