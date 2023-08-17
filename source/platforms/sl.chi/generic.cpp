@@ -712,10 +712,10 @@ ComputeStatus Generic::createTexture2DResourceShared(const ResourceDescription& 
         resourceDesc.sName = InFriendlyName;
     }
     CHI_CHECK(createTexture2DResourceSharedImpl(resourceDesc, OutResource, UseNativeFormat, resourceDesc.state));
+    setDebugName(OutResource, InFriendlyName);
 
     manageVRAM(OutResource, VRAMOperation::eAlloc);
 
-    setDebugName(OutResource, InFriendlyName);
     return ComputeStatus::eOk;
 }
 

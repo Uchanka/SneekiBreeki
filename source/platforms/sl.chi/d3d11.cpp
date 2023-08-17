@@ -800,6 +800,7 @@ ComputeStatus D3D11::getSwapChainBuffer(SwapChain chain, uint32_t index, Resourc
         return ComputeStatus::eError;
     }
     buffer = new sl::Resource(ResourceType::eTex2d, tmp);
+    setDebugName(buffer, "back buffer");
     // We free these buffers but never allocate them so account for the VRAM
     manageVRAM(buffer, VRAMOperation::eAlloc);
     return ComputeStatus::eOk;
@@ -1150,6 +1151,9 @@ ComputeStatus D3D11::createTexture2DResourceSharedImpl(ResourceDescription &InOu
     }
     
     OutResource = new sl::Resource(ResourceType::eTex2d, pResource);
+    OutResource->width = desc.Width;
+    OutResource->height = desc.Height;
+    OutResource->nativeFormat = desc.Format;
     if (!pResource)
     {
         SL_LOG_ERROR( "Failed to create Tex2d");
@@ -1395,6 +1399,10 @@ ComputeStatus D3D11::cloneResource(Resource resource, Resource &clone, const cha
     }
 
     clone = new sl::Resource(type, res);
+    clone->width = desc.width;
+    clone->height = desc.height;
+    clone->nativeFormat = desc.nativeFormat;
+    setDebugName(clone, friendlyName);
 
     manageVRAM(clone, VRAMOperation::eAlloc);
 
