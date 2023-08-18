@@ -103,6 +103,7 @@ struct MTSSGContext
     sl::chi::Resource appSurfaceBackup{};
 
     uint32_t frameId = 1;
+    uint32_t viewportId = 0;
 
     MTSSGOptions options;
     MTSSGState   state;
@@ -484,8 +485,8 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         ctx.state.status = MTSSGStatus::eOk;
     }
 
-    bool taggedResourceUpdate = checkTagedResourceUpdate(0);
-    acquireTaggedResource(0);
+    bool taggedResourceUpdate = checkTagedResourceUpdate(ctx.viewportId);
+    acquireTaggedResource(ctx.viewportId);
     if (taggedResourceUpdate)
     {
         cloneTaggedResource(ctx.currHudLessColor, ctx.currDepth, ctx.prevHudLessColor, ctx.prevDepth);
@@ -678,6 +679,21 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     return true;
 }
 
+sl::Result slSetConstants(const Constants& values, const FrameToken& frame, const ViewportHandle& viewport)
+{
+    auto& ctx = (*mtssg::getContext());
+
+    if (ctx.viewportId != viewport)
+    {
+        SL_LOG_WARN("Current ViewportId:%u Change To %u, We Not Test This Path, Maybe Has Issues.", ctx.viewportId, viewport);
+    }
+
+    ctx.frameId = frame;
+    ctx.viewportId = viewport;
+
+    return sl::Result::eOk;
+}
+
 HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc, IDXGISwapChain** ppSwapChain, bool& Skip)
 {
     SL_LOG_INFO("CreateSwapChain Width: %u, Height: %u, Buffer Count: %u", pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferCount);
@@ -836,6 +852,7 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     SL_EXPORT_FUNCTION(slOnPluginLoad);
     SL_EXPORT_FUNCTION(slOnPluginShutdown);
     SL_EXPORT_FUNCTION(slOnPluginStartup);
+    SL_EXPORT_FUNCTION(slSetConstants);
 
     SL_EXPORT_FUNCTION(slHookCreateSwapChain);
     SL_EXPORT_FUNCTION(slHookCreateSwapChainForHwnd);
