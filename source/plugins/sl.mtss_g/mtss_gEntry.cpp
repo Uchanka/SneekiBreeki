@@ -83,7 +83,6 @@ struct MTSSGContext
     sl::chi::Resource reprojectedTop{};
     sl::chi::Resource prevDepth{};
     sl::chi::Resource prevHudLessColor{};
-    bool fgResourceInited = false;
 
     // Compute API
     RenderAPI platform = RenderAPI::eD3D11;
@@ -101,7 +100,7 @@ struct MTSSGContext
 
     sl::chi::Resource appSurface{};
     sl::chi::Resource generateFrame{};
-    sl::chi::Resource referFrame{};
+    sl::chi::Resource appSurfaceBackup{};
 
     uint64_t frameId = 1;
 
@@ -229,6 +228,11 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_reprojection_cs, mtss_fg_reprojection_cs_len, "mtss_fg_reprojection.cs", "main", ctx.reprojectionKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_resolution_cs, mtss_fg_resolution_cs_len, "mtss_fg_resolution.cs", "main", ctx.resolutionKernel));
 
+    sl::CommonResource temp{};
+    getTaggedResource(kBufferTypeHUDLessColor, temp, 0);
+    getTaggedResource(kBufferTypeDepth, temp, 0);
+    getTaggedResource(kBufferTypeMotionVectors, temp, 0);
+
     return true;
 }
 
@@ -242,11 +246,30 @@ sl::chi::ComputeStatus destroyResource(sl::chi::Resource* pResource, uint32_t fr
     return ret;
 }
 
+sl::chi::ComputeStatus cloneResource(sl::chi::Resource resource, sl::chi::Resource& clone, const char friendlyName[])
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(destroyResource(&clone));
+    CHI_VALIDATE(ctx.pCompute->cloneResource(resource, clone, friendlyName));
+
+    return sl::chi::ComputeStatus::eOk;
+}
+
+sl::chi::ComputeStatus copyResource(sl::chi::Resource& dst, sl::chi::Resource& src)
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), dst, src));
+
+    return sl::chi::ComputeStatus::eOk;
+}
+
 void destroyFrameGenerationResource()
 {
     auto& ctx = (*mtssg::getContext());
 
-    CHI_VALIDATE(destroyResource(&ctx.referFrame));
+    CHI_VALIDATE(destroyResource(&ctx.appSurfaceBackup));
     CHI_VALIDATE(destroyResource(&ctx.prevDepth));
     CHI_VALIDATE(destroyResource(&ctx.prevHudLessColor));
     CHI_VALIDATE(destroyResource(&ctx.generateFrame));
@@ -302,40 +325,36 @@ uint32_t calcEstimatedVRAMUsageInBytes()
         vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp * 2;
     }
 
-    if (ctx.fgResourceInited)
+    if (ctx.prevDepth)
     {
-        {
-            sl::chi::Format depthFromat{};
-            CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevDepth->nativeFormat, depthFromat));
-            size_t depthBpp{};
-            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(depthFromat, depthBpp));
-            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
-        }
-
-        {
-            sl::chi::Format hudLessColorFormat{};
-            CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevHudLessColor->nativeFormat, hudLessColorFormat));
-            size_t hudLessColorBpp{};
-            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
-            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
-        }
+        sl::chi::Format depthFromat{};
+        CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevDepth->nativeFormat, depthFromat));
+        size_t depthBpp{};
+        CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(depthFromat, depthBpp));
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
     }
     else
     {
-        // If not inited, we assume resource format and calc vram
-        {
-            size_t depthBpp{};
-            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(sl::chi::Format::eFormatD32S32, depthBpp));
-            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
-        }
+        size_t depthBpp{};
+        CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(sl::chi::Format::eFormatD32S32, depthBpp));
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
+    }
 
-        {
-            sl::chi::Format hudLessColorFormat{};
-            CHI_VALIDATE(ctx.pCompute->getFormat(ctx.swapChainFormat, hudLessColorFormat));
-            size_t hudLessColorBpp{};
-            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
-            vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
-        }
+    if (ctx.prevHudLessColor)
+    {
+        sl::chi::Format hudLessColorFormat{};
+        CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevHudLessColor->nativeFormat, hudLessColorFormat));
+        size_t hudLessColorBpp{};
+        CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
+    }
+    else
+    {
+        sl::chi::Format hudLessColorFormat{};
+        CHI_VALIDATE(ctx.pCompute->getFormat(ctx.swapChainFormat, hudLessColorFormat));
+        size_t hudLessColorBpp{};
+        CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
     }
 
     return vRAMUsageInBytes;
@@ -367,7 +386,6 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
         uint32_t oldFormat = ctx.swapChainFormat;
 
         destroyFrameGenerationResource();
-        ctx.fgResourceInited = false;
 
         chi::ResourceDescription desc;
         desc.width = width;
@@ -429,14 +447,37 @@ HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * 
     return result;
 }
 
-sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
+bool checkTagedResourceUpdate(uint32_t viewportId)
 {
     auto& ctx = (*mtssg::getContext());
 
-    if (ctx.fgResourceInited)
+    sl::CommonResource hudLessRes{};
+    getTaggedResource(kBufferTypeHUDLessColor, hudLessRes, viewportId);
+    if (static_cast<void*>(hudLessRes) != static_cast<void*>(ctx.currHudLessColor))
     {
-        return sl::Result::eOk;
+        return true;
     }
+
+    sl::CommonResource depthRes{};
+    getTaggedResource(kBufferTypeDepth, depthRes, viewportId);
+    if (static_cast<void*>(depthRes) != static_cast<void*>(ctx.currDepth))
+    {
+        return true;
+    }
+
+    sl::CommonResource mvecRes{};
+    getTaggedResource(kBufferTypeMotionVectors, mvecRes, viewportId);
+    if (static_cast<void*>(mvecRes) != static_cast<void*>(ctx.mvec))
+    {
+        return true;
+    }
+
+    return false;
+}
+
+sl::Result acquireTaggedResource(uint32_t viewportId)
+{
+    auto& ctx = (*mtssg::getContext());
 
     sl::Result ret = getTaggedResource(kBufferTypeHUDLessColor, ctx.currHudLessColor, viewportId);
 
@@ -456,47 +497,23 @@ sl::Result acquireFrameGenerationResoruce(uint32_t viewportId)
         ctx.state.status = MTSSGStatus::eFailTagResourcesInvalid;
     }
 
-    if (ret == sl::Result::eOk)
-    {
-        auto status = ctx.pCompute->cloneResource(ctx.appSurface, ctx.referFrame, "refer frame");
-
-        if (status == sl::chi::ComputeStatus::eOk)
-        {
-            status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
-        }
-
-        if (status == sl::chi::ComputeStatus::eOk)
-        {
-            status = ctx.pCompute->cloneResource(ctx.currDepth, ctx.prevDepth, "prev depth");
-        }
-
-        if (status == sl::chi::ComputeStatus::eOk)
-        {
-            status = ctx.pCompute->cloneResource(ctx.currHudLessColor, ctx.prevHudLessColor, "prev hudless color");
-        }
-
-        ret = (status == sl::chi::ComputeStatus::eOk) ? sl::Result::eOk : sl::Result::eErrorInvalidState;
-
-        if (ret != sl::Result::eOk)
-        {
-            SL_LOG_ERROR("Acqueire FG Clone Resource Fail");
-            destroyFrameGenerationResource();
-        }
-    }
-
-    if (ret == sl::Result::eOk)
-    {
-        ctx.state.status = MTSSGStatus::eOk;
-    }
-
-    ctx.fgResourceInited = (ret == sl::Result::eOk) ? true : false;
-    if (ctx.fgResourceInited)
-    {
-        ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
-    }
-
     return ret;
 }
+
+sl::Result cloneTaggedResource(
+    const sl::CommonResource & currHudLessColor,
+    const sl::CommonResource&  currDepth,
+    sl::chi::Resource&         clonedHudLessColor,
+    sl::chi::Resource&         clonedDepth)
+{
+    auto& ctx = (*mtssg::getContext());
+
+    cloneResource(currHudLessColor, clonedHudLessColor, "prev hudless color");
+    cloneResource(currDepth, clonedDepth, "prev depth");
+
+    return sl::Result::eOk;
+}
+
 
 void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct *pCb, uint32_t grid[])
 {
@@ -576,7 +593,14 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         ctx.state.status = MTSSGStatus::eOk;
     }
 
-    if (ctx.fgResourceInited == false || firstFrame || foundConstData == false || IsContextStatusOk() == false)
+    bool taggedResourceUpdate = checkTagedResourceUpdate(0);
+    acquireTaggedResource(0);
+    if (taggedResourceUpdate)
+    {
+        cloneTaggedResource(ctx.currHudLessColor, ctx.currDepth, ctx.prevHudLessColor, ctx.prevDepth);
+    }
+
+    if (firstFrame || foundConstData == false || taggedResourceUpdate == true || IsContextStatusOk() == false)
     {
         if (api == sl::mtssg::PresentApi::Present)
         {
@@ -633,7 +657,7 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         }
 
         // Copy current surface to refer frame
-        auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.referFrame, ctx.appSurface);
+        auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurfaceBackup, ctx.appSurface);
         assert(status == sl::chi::ComputeStatus::eOk);
 
         // Copy generate frame to surface present
@@ -652,7 +676,7 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         ctx.state.status = MTSSGStatus::eOk;
 
         // Copy refer frame to surface present
-        status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.referFrame);
+        status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.appSurfaceBackup);
         assert(status == sl::chi::ComputeStatus::eOk);
         bool showRenderFrame = ((ctx.options.flags & MTSSGFlags::eShowOnlyInterpolatedFrame) == 0);
         if (showRenderFrame)
@@ -691,11 +715,9 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
         if (ctx.appSurface == nullptr)
         {
             ctx.pCompute->getSwapChainBuffer(swapChain, 0, ctx.appSurface);
+            cloneResource(ctx.appSurface, ctx.appSurfaceBackup, "app surface backup");
             firstFrame = true;
         }
-
-        sl::Result result = acquireFrameGenerationResoruce(0);
-        assert(result == sl::Result::eOk);
 
         presentCommon(swapChain, SyncInterval, Flags, nullptr, firstFrame, sl::mtssg::PresentApi::Present);
     }
@@ -724,11 +746,9 @@ HRESULT slHookPresent1(IDXGISwapChain * SwapChain, UINT SyncInterval, UINT Prese
         if (ctx.appSurface == nullptr)
         {
             ctx.pCompute->getSwapChainBuffer(SwapChain, 0, ctx.appSurface);
+            cloneResource(ctx.appSurface, ctx.appSurfaceBackup, "app surface backup");
             firstFrame = true;
         }
-
-        sl::Result result = acquireFrameGenerationResoruce(0);
-        assert(result == sl::Result::eOk);
 
         presentCommon(SwapChain, SyncInterval, PresentFlags, pPresentParameters, firstFrame, sl::mtssg::PresentApi::Present1);
     }
@@ -802,6 +822,10 @@ void updateEmbeddedJSON(json& config)
         // Specify 0 if our plugin runs on any adapter otherwise specify enum value `NV_GPU_ARCHITECTURE_*` from NVAPI
         info.minGPUArchitecture = 0;
         info.SHA = GIT_LAST_COMMIT_SHORT;
+        info.requiredTags = { { kBufferTypeDepth, ResourceLifecycle::eValidUntilPresent},
+                              {kBufferTypeMotionVectors, ResourceLifecycle::eValidUntilPresent},
+                              { kBufferTypeHUDLessColor, ResourceLifecycle::eValidUntilPresent}};
+
         updateCommonEmbeddedJSONConfig(&config, info);
     }
 }
