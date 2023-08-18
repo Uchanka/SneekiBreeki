@@ -102,12 +102,12 @@ struct MTSSGContext
     sl::chi::Resource generateFrame{};
     sl::chi::Resource appSurfaceBackup{};
 
-    uint64_t frameId = 1;
+    uint32_t frameId = 1;
 
     MTSSGOptions options;
     MTSSGState   state;
 };
-}
+}  // namespace mtssg
 
 void updateEmbeddedJSON(json& config);
 
@@ -161,12 +161,6 @@ static const char* JSON = R"json(
         },
         {
             "class": "IDXGISwapChain",
-            "target" : "ResizeBuffers",
-            "replacement" : "slHookResizeBuffersPost",
-            "base" : "after"
-        },
-        {
-            "class": "IDXGISwapChain",
             "target" : "ResizeBuffers1",
             "replacement" : "slHookResizeBuffers1Pre",
             "base" : "before"
@@ -176,12 +170,6 @@ static const char* JSON = R"json(
             "target" : "SetFullscreenState",
             "replacement" : "slHookSetFullscreenStatePre",
             "base" : "before"
-        },
-        {
-            "class": "IDXGISwapChain",
-            "target" : "SetFullscreenState",
-            "replacement" : "slHookSetFullscreenStatePost",
-            "base" : "after"
         }
     ]
 }
@@ -190,52 +178,8 @@ static const char* JSON = R"json(
 //! Define our plugin, make sure to update version numbers in versions.h
 SL_PLUGIN_DEFINE("sl.mtss_g", Version(VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH), Version(0, 0, 1), JSON, updateEmbeddedJSON, mtssg, MTSSGContext)
 
-bool slOnPluginStartup(const char* jsonConfig, void* device)
+namespace mtssg
 {
-    SL_PLUGIN_COMMON_STARTUP();
-
-    auto& ctx = (*mtssg::getContext());
-    ctx.state.minWidthOrHeight = 128;
-    ctx.state.status = MTSSGStatus::eOk;
-
-    auto parameters = api::getContext()->parameters;
-
-    json& config = *(json*)api::getContext()->loaderConfig;
-    uint32_t deviceType{};
-    int appId{};
-    config.at("appId").get_to(appId);
-    config.at("deviceType").get_to(deviceType);
-
-    ctx.platform = (RenderAPI)deviceType;
-    if (ctx.platform != RenderAPI::eD3D11)
-    {
-        SL_LOG_ERROR("MTSS-FG Only Support D3D11 Device Now!");
-        return false;
-    }
-
-    if (!param::getPointerParam(parameters, sl::param::common::kComputeAPI, &ctx.pCompute))
-    {
-        return false;
-    }
-
-    ctx.pCompute->createCommandQueue(chi::CommandQueueType::eCopy, ctx.cmdCopyQueue, "mtss-g copy queue");
-    assert(ctx.cmdCopyQueue != nullptr);
-
-    ctx.pCompute->createCommandListContext(ctx.cmdCopyQueue, 1, ctx.pCmdList, "mtss-g ctx");
-    assert(ctx.pCmdList != nullptr);
-
-    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_clearing_cs, mtss_fg_clearing_cs_len, "mtss_fg_clearing.cs", "main", ctx.clearKernel));
-    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_reprojection_cs, mtss_fg_reprojection_cs_len, "mtss_fg_reprojection.cs", "main", ctx.reprojectionKernel));
-    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_resolution_cs, mtss_fg_resolution_cs_len, "mtss_fg_resolution.cs", "main", ctx.resolutionKernel));
-
-    sl::CommonResource temp{};
-    getTaggedResource(kBufferTypeHUDLessColor, temp, 0);
-    getTaggedResource(kBufferTypeDepth, temp, 0);
-    getTaggedResource(kBufferTypeMotionVectors, temp, 0);
-
-    return true;
-}
-
 sl::chi::ComputeStatus destroyResource(sl::chi::Resource* pResource, uint32_t frameDelay = 0)
 {
     auto& ctx = (*mtssg::getContext());
@@ -263,35 +207,6 @@ sl::chi::ComputeStatus copyResource(sl::chi::Resource& dst, sl::chi::Resource& s
     CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), dst, src));
 
     return sl::chi::ComputeStatus::eOk;
-}
-
-void destroyFrameGenerationResource()
-{
-    auto& ctx = (*mtssg::getContext());
-
-    CHI_VALIDATE(destroyResource(&ctx.appSurfaceBackup));
-    CHI_VALIDATE(destroyResource(&ctx.prevDepth));
-    CHI_VALIDATE(destroyResource(&ctx.prevHudLessColor));
-    CHI_VALIDATE(destroyResource(&ctx.generateFrame));
-    CHI_VALIDATE(destroyResource(&ctx.appSurface));
-    CHI_VALIDATE(destroyResource(&ctx.reprojectedTip));
-    CHI_VALIDATE(destroyResource(&ctx.reprojectedTop));
-}
-
-void slOnPluginShutdown()
-{
-    auto& ctx = (*mtssg::getContext());
-
-    destroyFrameGenerationResource();
-
-    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.clearKernel));
-    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.reprojectionKernel));
-    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.resolutionKernel));
-
-    ctx.pCompute->destroyCommandListContext(ctx.pCmdList);
-    ctx.pCompute->destroyCommandQueue(ctx.cmdCopyQueue);
-
-    plugin::onShutdown(api::getContext());
 }
 
 bool IsContextStatusOk()
@@ -360,6 +275,19 @@ uint32_t calcEstimatedVRAMUsageInBytes()
     return vRAMUsageInBytes;
 }
 
+void destroyFrameGenerationResource()
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(destroyResource(&ctx.appSurfaceBackup));
+    CHI_VALIDATE(destroyResource(&ctx.prevDepth));
+    CHI_VALIDATE(destroyResource(&ctx.prevHudLessColor));
+    CHI_VALIDATE(destroyResource(&ctx.generateFrame));
+    CHI_VALIDATE(destroyResource(&ctx.appSurface));
+    CHI_VALIDATE(destroyResource(&ctx.reprojectedTip));
+    CHI_VALIDATE(destroyResource(&ctx.reprojectedTop));
+}
+
 void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
 {
     auto& ctx = (*mtssg::getContext());
@@ -374,9 +302,9 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
         ctx.state.status = MTSSGStatus::eOk;
     }
 
-    if ((IsContextStatusOk())           &&
-        ((ctx.generateFrame == nullptr) || 
-        (ctx.swapChainWidth != width)   ||
+    if ((IsContextStatusOk()) &&
+        ((ctx.generateFrame == nullptr) ||
+        (ctx.swapChainWidth != width) ||
         (ctx.swapChainHeight != height) ||
         (ctx.swapChainFormat != format)))
     {
@@ -409,42 +337,6 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
         ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
         SL_LOG_INFO("estimatedVRAMUsageInBytes: %llu Bytes(%u MB)", ctx.state.estimatedVRAMUsageInBytes, ctx.state.estimatedVRAMUsageInBytes / 1024 / 1024);
     }
-}
-
-HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc, IDXGISwapChain** ppSwapChain, bool& Skip)
-{
-    SL_LOG_INFO("CreateSwapChain Width: %u, Height: %u, Buffer Count: %u", pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferCount);
-
-    HRESULT result = S_OK;
-
-    createGeneratedFrame(pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferDesc.Format);
-
-    return result;
-}
-
-
-HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevice, HWND hWnd, const DXGI_SWAP_CHAIN_DESC1 * pDesc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC * pFulScreenDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
-{
-    MTSSFG_NOT_TEST();
-    SL_LOG_INFO("slHookCreateSwapChainForHwnd");
-
-    HRESULT result = S_OK;
-
-    createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
-
-    return result;
-}
-
-HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * pDevice, IUnknown * pWindow, const DXGI_SWAP_CHAIN_DESC1 * pDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
-{
-    MTSSFG_NOT_TEST();
-    SL_LOG_INFO("slHookCreateSwapChainForCoreWindow");
-
-    HRESULT result = S_OK;
-
-    createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
-
-    return result;
 }
 
 bool checkTagedResourceUpdate(uint32_t viewportId)
@@ -501,10 +393,10 @@ sl::Result acquireTaggedResource(uint32_t viewportId)
 }
 
 sl::Result cloneTaggedResource(
-    const sl::CommonResource & currHudLessColor,
-    const sl::CommonResource&  currDepth,
-    sl::chi::Resource&         clonedHudLessColor,
-    sl::chi::Resource&         clonedDepth)
+    const sl::CommonResource& currHudLessColor,
+    const sl::CommonResource& currDepth,
+    sl::chi::Resource& clonedHudLessColor,
+    sl::chi::Resource& clonedDepth)
 {
     auto& ctx = (*mtssg::getContext());
 
@@ -514,8 +406,7 @@ sl::Result cloneTaggedResource(
     return sl::Result::eOk;
 }
 
-
-void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct *pCb, uint32_t grid[])
+void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct* pCb, uint32_t grid[])
 {
     auto& ctx = (*mtssg::getContext());
 
@@ -529,7 +420,7 @@ void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct *pCb, ui
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 }
 
-void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct *pCb, uint32_t grid[])
+void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct* pCb, uint32_t grid[])
 {
     auto& ctx = (*mtssg::getContext());
 
@@ -698,6 +589,129 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
     status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
     assert(status == sl::chi::ComputeStatus::eOk);
 }
+} // namespace mtssg
+
+void updateEmbeddedJSON(json& config)
+{
+    // Check if plugin is supported or not on this platform and set the flag accordingly
+    common::SystemCaps* caps = {};
+    param::getPointerParam(api::getContext()->parameters, sl::param::common::kSystemCaps, &caps);
+    common::PFunUpdateCommonEmbeddedJSONConfig* updateCommonEmbeddedJSONConfig{};
+    param::getPointerParam(api::getContext()->parameters, sl::param::common::kPFunUpdateCommonEmbeddedJSONConfig, &updateCommonEmbeddedJSONConfig);
+    if (caps && updateCommonEmbeddedJSONConfig)
+    {
+        common::PluginInfo info{};
+        // Specify minimum driver version we need
+        info.minDriver = sl::Version(0, 0, 0);
+        // SL does not work on Win7, only Win10+
+        info.minOS = sl::Version(10, 0, 0);
+        // Specify 0 if our plugin runs on any adapter otherwise specify enum value `NV_GPU_ARCHITECTURE_*` from NVAPI
+        info.minGPUArchitecture = 0;
+        info.SHA = GIT_LAST_COMMIT_SHORT;
+        info.requiredTags = { { kBufferTypeDepth, ResourceLifecycle::eValidUntilPresent},
+                              {kBufferTypeMotionVectors, ResourceLifecycle::eValidUntilPresent},
+                              { kBufferTypeHUDLessColor, ResourceLifecycle::eValidUntilPresent} };
+
+        updateCommonEmbeddedJSONConfig(&config, info);
+    }
+}
+
+void slOnPluginShutdown()
+{
+    auto& ctx = (*mtssg::getContext());
+
+    mtssg::destroyFrameGenerationResource();
+
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.clearKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.reprojectionKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.resolutionKernel));
+
+    ctx.pCompute->destroyCommandListContext(ctx.pCmdList);
+    ctx.pCompute->destroyCommandQueue(ctx.cmdCopyQueue);
+
+    plugin::onShutdown(api::getContext());
+}
+
+bool slOnPluginStartup(const char* jsonConfig, void* device)
+{
+    SL_PLUGIN_COMMON_STARTUP();
+
+    auto& ctx = (*mtssg::getContext());
+    ctx.state.minWidthOrHeight = 128;
+    ctx.state.status = MTSSGStatus::eOk;
+
+    auto parameters = api::getContext()->parameters;
+
+    json& config = *(json*)api::getContext()->loaderConfig;
+    uint32_t deviceType{};
+    int appId{};
+    config.at("appId").get_to(appId);
+    config.at("deviceType").get_to(deviceType);
+
+    ctx.platform = (RenderAPI)deviceType;
+    if (ctx.platform != RenderAPI::eD3D11)
+    {
+        SL_LOG_ERROR("MTSS-FG Only Support D3D11 Device Now!");
+        return false;
+    }
+
+    if (!param::getPointerParam(parameters, sl::param::common::kComputeAPI, &ctx.pCompute))
+    {
+        return false;
+    }
+
+    ctx.pCompute->createCommandQueue(chi::CommandQueueType::eCopy, ctx.cmdCopyQueue, "mtss-g copy queue");
+    assert(ctx.cmdCopyQueue != nullptr);
+
+    ctx.pCompute->createCommandListContext(ctx.cmdCopyQueue, 1, ctx.pCmdList, "mtss-g ctx");
+    assert(ctx.pCmdList != nullptr);
+
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_clearing_cs, mtss_fg_clearing_cs_len, "mtss_fg_clearing.cs", "main", ctx.clearKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_reprojection_cs, mtss_fg_reprojection_cs_len, "mtss_fg_reprojection.cs", "main", ctx.reprojectionKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_resolution_cs, mtss_fg_resolution_cs_len, "mtss_fg_resolution.cs", "main", ctx.resolutionKernel));
+
+    sl::CommonResource temp{};
+    getTaggedResource(kBufferTypeHUDLessColor, temp, 0);
+    getTaggedResource(kBufferTypeDepth, temp, 0);
+    getTaggedResource(kBufferTypeMotionVectors, temp, 0);
+
+    return true;
+}
+
+HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc, IDXGISwapChain** ppSwapChain, bool& Skip)
+{
+    SL_LOG_INFO("CreateSwapChain Width: %u, Height: %u, Buffer Count: %u", pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferCount);
+
+    HRESULT result = S_OK;
+
+    mtssg::createGeneratedFrame(pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferDesc.Format);
+
+    return result;
+}
+
+HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2 * pFactory, IUnknown * pDevice, HWND hWnd, const DXGI_SWAP_CHAIN_DESC1 * pDesc, const DXGI_SWAP_CHAIN_FULLSCREEN_DESC * pFulScreenDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
+{
+    MTSSFG_NOT_TEST();
+    SL_LOG_INFO("slHookCreateSwapChainForHwnd");
+
+    HRESULT result = S_OK;
+
+    mtssg::createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
+
+    return result;
+}
+
+HRESULT slHookCreateSwapChainForCoreWindow(IDXGIFactory2 * pFactory, IUnknown * pDevice, IUnknown * pWindow, const DXGI_SWAP_CHAIN_DESC1 * pDesc, IDXGIOutput * pRestrictToOutput, IDXGISwapChain1 * *ppSwapChain, bool& Skip)
+{
+    MTSSFG_NOT_TEST();
+    SL_LOG_INFO("slHookCreateSwapChainForCoreWindow");
+
+    HRESULT result = S_OK;
+
+    mtssg::createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
+
+    return result;
+}
 
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
 {
@@ -715,14 +729,13 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
         if (ctx.appSurface == nullptr)
         {
             ctx.pCompute->getSwapChainBuffer(swapChain, 0, ctx.appSurface);
-            cloneResource(ctx.appSurface, ctx.appSurfaceBackup, "app surface backup");
+            mtssg::cloneResource(ctx.appSurface, ctx.appSurfaceBackup, "app surface backup");
             firstFrame = true;
         }
 
         presentCommon(swapChain, SyncInterval, Flags, nullptr, firstFrame, sl::mtssg::PresentApi::Present);
     }
 
-    ctx.frameId++;
     return S_OK;
 }
 
@@ -746,14 +759,12 @@ HRESULT slHookPresent1(IDXGISwapChain * SwapChain, UINT SyncInterval, UINT Prese
         if (ctx.appSurface == nullptr)
         {
             ctx.pCompute->getSwapChainBuffer(SwapChain, 0, ctx.appSurface);
-            cloneResource(ctx.appSurface, ctx.appSurfaceBackup, "app surface backup");
+            mtssg::cloneResource(ctx.appSurface, ctx.appSurfaceBackup, "app surface backup");
             firstFrame = true;
         }
 
         presentCommon(SwapChain, SyncInterval, PresentFlags, pPresentParameters, firstFrame, sl::mtssg::PresentApi::Present1);
     }
-
-    ctx.frameId++;
 
     return result;
 }
@@ -764,16 +775,7 @@ HRESULT slHookResizeBuffersPre(IDXGISwapChain* SwapChain, UINT BufferCount, UINT
 
     HRESULT result = S_OK;
 
-    createGeneratedFrame(Width, Height, NewFormat);
-
-    return result;
-}
-
-HRESULT slHookResizeBuffersPost(IDXGISwapChain* SwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT& SwapChainFlags)
-{
-    SL_LOG_INFO("slHookResizeBuffersPost");
-
-    HRESULT result = S_OK;
+    mtssg::createGeneratedFrame(Width, Height, NewFormat);
 
     return result;
 }
@@ -792,42 +794,6 @@ HRESULT slHookSetFullscreenStatePre(IDXGISwapChain * SwapChain, BOOL pFullscreen
     HRESULT result = S_OK;
 
     return result;
-}
-
-HRESULT slHookSetFullscreenStatePost(IDXGISwapChain* SwapChain, BOOL pFullscreen, IDXGIOutput* ppTarget)
-{
-    SL_LOG_INFO("slHookSetFullscreenStatePost fullscreen:%s", pFullscreen ? "YES" : "NO");
-
-    HRESULT result = S_OK;
-
-    return result;
-}
-
-//! Figure out if we are supported on the current hardware or not
-//! 
-void updateEmbeddedJSON(json& config)
-{
-    // Check if plugin is supported or not on this platform and set the flag accordingly
-    common::SystemCaps* caps = {};
-    param::getPointerParam(api::getContext()->parameters, sl::param::common::kSystemCaps, &caps);
-    common::PFunUpdateCommonEmbeddedJSONConfig* updateCommonEmbeddedJSONConfig{};
-    param::getPointerParam(api::getContext()->parameters, sl::param::common::kPFunUpdateCommonEmbeddedJSONConfig, &updateCommonEmbeddedJSONConfig);
-    if (caps && updateCommonEmbeddedJSONConfig)
-    {
-        common::PluginInfo info{};
-        // Specify minimum driver version we need
-        info.minDriver = sl::Version(0, 0, 0);
-        // SL does not work on Win7, only Win10+
-        info.minOS = sl::Version(10, 0, 0);
-        // Specify 0 if our plugin runs on any adapter otherwise specify enum value `NV_GPU_ARCHITECTURE_*` from NVAPI
-        info.minGPUArchitecture = 0;
-        info.SHA = GIT_LAST_COMMIT_SHORT;
-        info.requiredTags = { { kBufferTypeDepth, ResourceLifecycle::eValidUntilPresent},
-                              {kBufferTypeMotionVectors, ResourceLifecycle::eValidUntilPresent},
-                              { kBufferTypeHUDLessColor, ResourceLifecycle::eValidUntilPresent}};
-
-        updateCommonEmbeddedJSONConfig(&config, info);
-    }
 }
 
 sl::Result slMTSSGGetState(const sl::ViewportHandle& viewport, sl::MTSSGState& state, const sl::MTSSGOptions* options)
@@ -877,10 +843,8 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     SL_EXPORT_FUNCTION(slHookPresent);
     SL_EXPORT_FUNCTION(slHookPresent1);
     SL_EXPORT_FUNCTION(slHookResizeBuffersPre);
-    SL_EXPORT_FUNCTION(slHookResizeBuffersPost);
     SL_EXPORT_FUNCTION(slHookResizeBuffers1Pre);
     SL_EXPORT_FUNCTION(slHookSetFullscreenStatePre);
-    SL_EXPORT_FUNCTION(slHookSetFullscreenStatePost);
 
     SL_EXPORT_FUNCTION(slMTSSGGetState);
     SL_EXPORT_FUNCTION(slMTSSGSetOptions);
@@ -888,4 +852,4 @@ SL_EXPORT void* slGetPluginFunction(const char* functionName)
     return nullptr;
 }
 
-}
+}  // namespace sl
