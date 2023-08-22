@@ -165,11 +165,22 @@ bool IsOffScreen(uint bCameraCut, float2 ScreenPos)
     return (bIsCameraCut || bIsOutOfBounds);
 }
 
+#define FOUR_POINTS_TIAN_SIZE 4
 #define THREE_BY_THREE_PATCH_SIZE 9
 #define THREE_BY_THREE_PATCH_DIM 3
 
+static const int subsampleCount4PointTian = 4;
 static const int subsampleCount5PointStencil = 5;
 static const int subsampleCount9PointPatch = 9;
+
+static const int2 subsamplePixelOffset4PointTian[FOUR_POINTS_TIAN_SIZE] =
+{
+    int2(0, 0), //K
+	
+	int2(0, 1),
+	int2(1, 0),
+	int2(1, 1)
+};
 
 static const int2 subsamplePixelOffset5PointStencil[5] =
 {

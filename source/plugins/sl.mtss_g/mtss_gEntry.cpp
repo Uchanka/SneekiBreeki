@@ -378,7 +378,7 @@ UINT slHookGetCurrentBackBufferIndex(IDXGISwapChain* SwapChain, bool& Skip)
 
 HRESULT addPushPullPasses(sl::tmpl::MTSSGContext& ctx)
 {
-
+    return S_OK;
 }
 
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)

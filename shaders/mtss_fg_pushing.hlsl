@@ -2,17 +2,17 @@
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-RWTexture2D<uint> motionReprojTipX;
-RWTexture2D<uint> motionReprojTipY;
-RWTexture2D<uint> motionReprojTopX;
-RWTexture2D<uint> motionReprojTopY;
+Texture2D<mtss_float4> motionVectorFiner;
+Texture2D<mtss_float4> motionVectorCoarser;
+Texture2D<mtss_float> motionReliabilityFiner;
+Texture2D<mtss_float> motionReliabilityCoarser;
+
+RWTexture2D<mtss_float4> motionVectorFinerUAV;
 
 cbuffer shaderConsts : register(b0)
 {
-    uint2 dimensions;
-    float2 smoothing;
-    float2 viewportSize;
-    float2 viewportInv;
+    uint2 finerDimension;
+    uint2 coarserDimension;
 }
 
 #define TILE_SIZE 8
@@ -23,12 +23,27 @@ cbuffer shaderConsts : register(b0)
 void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint groupThreadIndex : SV_GroupIndex)
 {
     uint2 dispatchThreadId = localId + groupId * uint2(TILE_SIZE, TILE_SIZE);
-    int2 currentPixelIndex = dispatchThreadId;
-    
-    bool bIsValidPixel = all(uint2(currentPixelIndex) < dimensions);
-    if (bIsValidPixel)
+    int2 finerPixelIndex = dispatchThreadId;
+    int2 coarserPixelIndex = finerPixelIndex / 2;
+	
+	mtss_float finerReliability = motionReliabilityFiner[finerPixelIndex];
+	mtss_float coarserReliability = motionReliabilityCoarser[coarserPixelIndex];
+	
+	mtss_float4 selectedVector = 0.0f;
+    if (finerReliability == 0.0f)
     {
-        reprojectedTip[currentPixelIndex] = mtss_float4(0.0f, 0.0f, 0.0f, 0.0f);
-        reprojectedTop[currentPixelIndex] = mtss_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        selectedVector = motionVectorCoarser[coarserPixelIndex];
+    }
+    else
+    {
+        selectedVector = motionVectorFiner[finerPixelIndex];
+    }
+	
+	{
+        bool bIsValidhistoryPixel = all(uint2(finerPixelIndex) < finerDimension);
+        if (bIsValidhistoryPixel)
+        {
+            motionVectorFinerUAV[finerPixelIndex] = selectedVector;
+        }
     }
 }

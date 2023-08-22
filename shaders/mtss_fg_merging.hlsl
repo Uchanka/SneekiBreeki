@@ -7,8 +7,8 @@ Texture2D<uint> motionReprojTipY;
 Texture2D<uint> motionReprojTopX;
 Texture2D<uint> motionReprojTopY;
 
-Texture2D<mtss_float2> motionUnprojected;
-RWTexture2D<mtss_float2> motionReprojected;
+Texture2D<float2> motionUnprojected;
+RWTexture2D<float4> motionReprojected;
 
 cbuffer shaderConsts : register(b0)
 {
@@ -31,7 +31,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     int2 currentPixelIndex = dispatchThreadId;
 	
     float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
-    float2 viewportUV = pixelCenter * HistoryInfo_ViewportSizeInverse;
+    float2 viewportUV = pixelCenter * viewportInv;
 #ifdef UNREAL_ENGINE_COORDINATES
     float2 screenPos = ViewportUVToScreenPos(viewportUV);
 #endif
@@ -59,10 +59,10 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTip = clamp(motionCaliberatedUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-	mtss_float2 motionTipCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTip, 0);
+	float2 motionTipCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTip, 0);
     if (bIsTipUnwritten)
     {
-        motionTipCaliberated = mtss_float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
+        motionTipCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
     }
 	
     uint topX = motionReprojTopX[currentPixelIndex];
@@ -73,7 +73,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionVectorTop = motionUnprojected[topIndex];
     float2 samplePosTop = screenPos + motionVectorTop * distanceTop;
     float2 motionCaliberatedUVTop = ScreenPosToViewportUV(samplePosTop);
-    motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, PrevHistoryInfo_UVViewportBilinearMin, PrevHistoryInfo_UVViewportBilinearMax);
+    motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
     float2 motionVectorTop = motionUnprojected[topIndex] * viewportInv;
@@ -82,18 +82,17 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-    float2 motionTopCaliberated = motionUnprojected.SampleLevel(GlobalBilinearClampedSampler, motionCaliberatedUVTop, 0).xy;
+    float2 motionTopCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0).xy;
     if (bIsTopUnwritten)
     {
-        motionTopCaliberated = mtss_float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
+        motionTopCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
     }
 	
-    ISOLATE
 	{
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < dimensions);
         if (bIsValidhistoryPixel)
         {
-            motionReprojected[currentPixelIndex] = mtss_float4(motionTopCaliberated, motionTipCaliberated);
+            motionReprojected[currentPixelIndex] = float4(motionTopCaliberated, motionTipCaliberated);
         }
     }
 }

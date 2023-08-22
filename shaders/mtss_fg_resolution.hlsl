@@ -29,8 +29,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 {
     uint2 dispatchThreadId = localId + groupId * uint2(TILE_SIZE, TILE_SIZE);
     int2 currentPixelIndex = dispatchThreadId;
-    float2 viewportUV = (float2(currentPixelIndex) + 0.5f) * viewportInv;
+    float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
+    float2 viewportUV = pixelCenter * viewportInv;
+#ifdef UNREAL_ENGINE_COORDINATES
     float2 screenPos = ViewportUVToScreenPos(viewportUV);
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+    float2 screenPos = viewportUV;
+#endif
 
 #ifdef UNREAL_ENGINE_COORDINATES
 	mtss_float4 motionVector = motionReprojected[currentPixelIndex];
@@ -104,7 +110,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < viewportSize);
         if (bIsValidhistoryPixel)
         {
-            outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
+            outputTexture[currentPixelIndex] = float4(tipSample, 1.0f);
         }
     }
 }
