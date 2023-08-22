@@ -28,8 +28,28 @@ namespace sl
 namespace mtssg
 {
 
-#define MTSSFG_DPF 0
+#define MTSSFG_PERF 0
+#define MTSSFG_DPF  0
+
 #define MTSSFG_NOT_TEST() SL_LOG_WARN("This Path Not Test, Maybe Not Work")
+
+#define MTSSFG_BEGIN_PERF(_expr, section)       \
+{                                               \
+    bool _expr_eval = static_cast<bool>(_expr); \
+    if (_expr_eval)                             \
+    {                                           \
+        beginPerfSection(section);              \
+    }                                           \
+}
+
+#define MTSSFG_END_PERF(_expr, section)         \
+{                                               \
+    bool _expr_eval = static_cast<bool>(_expr); \
+    if (_expr_eval)                             \
+    {                                           \
+        endPerfSection(section);                \
+    }                                           \
+}
 
 struct ClearingConstParamStruct
 {
@@ -407,6 +427,27 @@ sl::Result cloneTaggedResource(
     return sl::Result::eOk;
 }
 
+void beginPerfSection(const char* section)
+{
+#if SL_ENABLE_TIMING && MTSSFG_PERF
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(ctx.pCompute->beginPerfSection(ctx.pCmdList->getCmdList(), section, 0, true));
+#endif
+}
+
+void endPerfSection(const char* section)
+{
+#if SL_ENABLE_TIMING && MTSSFG_PERF
+    auto& ctx = (*mtssg::getContext());
+
+    float costMs = 0.0f;
+    CHI_VALIDATE(ctx.pCompute->endPerfSection(ctx.pCmdList->getCmdList(), section, costMs));
+
+    SL_LOG_INFO("%s cost %.3f ms", section, costMs);
+#endif
+}
+
 void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct* pCb, uint32_t grid[])
 {
     auto& ctx = (*mtssg::getContext());
@@ -485,6 +526,11 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         ctx.state.status = MTSSGStatus::eOk;
     }
 
+    bool onlyCheckKernelPerf = (ctx.frameId % 2) == 1;
+    bool onlyCheckPresentTotalPerf = onlyCheckKernelPerf == false;
+
+    MTSSFG_BEGIN_PERF(onlyCheckPresentTotalPerf, "sl.mtss-fg.present");
+
     bool taggedResourceUpdate = checkTagedResourceUpdate(ctx.viewportId);
     acquireTaggedResource(ctx.viewportId);
     if (taggedResourceUpdate)
@@ -506,6 +552,7 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
     }
     else
     {
+        MTSSFG_BEGIN_PERF(onlyCheckKernelPerf, "sl.mtss-fg.kernel");
         // Not first frame and resource init success, use current surface and refer frame to generate frame
         sl::uint2 dimensions = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
         sl::float2 smoothing = sl::float2(1.0f, 1.0f);
@@ -544,9 +591,9 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
             rb.smoothing = sl::float2(1.0f, 1.0f);
             rb.viewportSize = viewportSize;
             rb.viewportInv = viewportInv;
-
             processFrameGenerationResolution(&rb, grid);
         }
+        MTSSFG_END_PERF(onlyCheckKernelPerf, "sl.mtss-fg.kernel");
 
         // Copy current surface to refer frame
         auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurfaceBackup, ctx.appSurface);
@@ -555,6 +602,7 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         // Copy generate frame to surface present
         status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generateFrame);
         assert(status == sl::chi::ComputeStatus::eOk);
+
         if (api == sl::mtssg::PresentApi::Present)
         {
             swapChain->Present(SyncInterval, Flags);
@@ -570,6 +618,7 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
         // Copy refer frame to surface present
         status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.appSurfaceBackup);
         assert(status == sl::chi::ComputeStatus::eOk);
+
         bool showRenderFrame = ((ctx.options.flags & MTSSGFlags::eShowOnlyInterpolatedFrame) == 0);
         if (showRenderFrame)
         {
@@ -587,8 +636,11 @@ void presentCommon(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, con
 
     auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
     assert(status == sl::chi::ComputeStatus::eOk);
+
     status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
     assert(status == sl::chi::ComputeStatus::eOk);
+
+    MTSSFG_END_PERF(onlyCheckPresentTotalPerf, "sl.mtss-fg.present");
 }
 } // namespace mtssg
 
