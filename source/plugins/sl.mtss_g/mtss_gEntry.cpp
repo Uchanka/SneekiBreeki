@@ -331,7 +331,7 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
 	desc.nativeFormat = pDesc->BufferDesc.Format;
 	ctx.pCompute->createTexture2D(desc, ctx.generatedFrame, "generatedFrame");
 
-    desc.nativeFormat = DXGI_FORMAT_R16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32_UINT;
     ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTipX, "motionReprojectedTipX");
     ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTipY, "motionReprojectedTipY");
     ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTopX, "motionReprojectedTopX");
@@ -610,7 +610,7 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedTopX));
                 CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, ctx.motionReprojectedTopY));
 
-                CHI_VALIDATE(ctx.pCompute->bindConsts(2, 0, &lb, sizeof(lb), 1));
+                CHI_VALIDATE(ctx.pCompute->bindConsts(4, 0, &lb, sizeof(lb), 1));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
             }
