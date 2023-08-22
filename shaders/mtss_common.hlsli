@@ -25,7 +25,7 @@ uint2 ZOrder2DMTSS(uint Index, const uint SizeLog2)
 #define DepthFirst19DigitsMask 0xFFFFE000
 #define DepthFirst31DigitsMask 0xFFFFFFFE
 
-#define MaxDepthFirst19Digits 0xFFFF0000
+#define MaxDepthFirst19Digits 0xFFFFE000
 #define MinDepthFirst19Digits 0x00000000
 
 #define IndexLast13DigitsMask 0x00001FFF

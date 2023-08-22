@@ -82,7 +82,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-    float2 motionTopCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0).xy;
+    float2 motionTopCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0);
     if (bIsTopUnwritten)
     {
         motionTopCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);

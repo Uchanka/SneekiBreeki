@@ -23,6 +23,7 @@
 #include "_artifacts/shaders/mtss_fg_merging_cs.h"
 #include "_artifacts/shaders/mtss_fg_pushing_cs.h"
 #include "_artifacts/shaders/mtss_fg_pulling_cs.h"
+#include "_artifacts/shaders/mtss_fg_laststretch_cs.h"
 #include "_artifacts/shaders/mtss_fg_resolution_cs.h"
 
 #include <d3d11.h>
@@ -97,6 +98,7 @@ struct MTSSGContext
     sl::chi::Kernel mergeKernel;
     sl::chi::Kernel pullKernel;
     sl::chi::Kernel pushKernel;
+    sl::chi::Kernel laststretchKernel;
     sl::chi::Kernel resolutionKernel;
 
     uint32_t swapChainWidth{};
@@ -231,6 +233,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_merging_cs, mtss_fg_merging_cs_len, "mtss_fg_merging.cs", "main", ctx.mergeKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_pulling_cs, mtss_fg_pulling_cs_len, "mtss_fg_pulling.cs", "main", ctx.pullKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_pushing_cs, mtss_fg_pushing_cs_len, "mtss_fg_pushing.cs", "main", ctx.pushKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_laststretch_cs, mtss_fg_laststretch_cs_len, "mtss_fg_laststretch.cs", "main", ctx.laststretchKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_resolution_cs, mtss_fg_resolution_cs_len, "mtss_fg_resolution.cs", "main", ctx.resolutionKernel));
 
     // ImGUI Plugin not support in out card, it require DX12
@@ -376,9 +379,140 @@ UINT slHookGetCurrentBackBufferIndex(IDXGISwapChain* SwapChain, bool& Skip)
     return 0;
 }
 
-HRESULT addPushPullPasses(sl::tmpl::MTSSGContext& ctx)
+void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 {
-    return S_OK;
+    if (layers == 0)
+    {
+        ctx.motionVectorLv0 = ctx.motionReprojected;
+        return;
+    }
+
+    struct PushPullParameters
+    {
+        uint2 FinerDimension;
+        uint2 CoarserDimension;
+    };
+    uint2 originalSize = uint2(ctx.swapChainWidth, ctx.swapChainHeight);
+
+    PushPullParameters ppParameters;
+    {
+        ppParameters.FinerDimension = originalSize;
+        ppParameters.CoarserDimension = uint2(ppParameters.FinerDimension.x / 2, ppParameters.FinerDimension.y / 2);
+    }
+    PushPullParameters ppParametersLv01 = ppParameters;
+    //Pulling
+    if (layers >= 1)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+        CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.pullKernel));
+
+        CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionReprojected));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 0, ctx.motionVectorLv1));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 1, ctx.reliabilityLv1));
+
+        CHI_VALIDATE(ctx.pCompute->bindConsts(3, 0, &ppParametersLv01, sizeof(ppParametersLv01), 1));
+
+        uint32_t grid[] = { (ppParametersLv01.CoarserDimension.x + 8 - 1) / 8, (ppParametersLv01.CoarserDimension.y + 8 - 1) / 8, 1 };
+        CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+    }
+
+    PushPullParameters ppParametersLv12;
+    ppParametersLv12.FinerDimension = uint2(ppParametersLv01.FinerDimension.x / 2, ppParametersLv01.FinerDimension.y / 2);
+    ppParametersLv12.CoarserDimension = uint2(ppParametersLv01.CoarserDimension.x / 2, ppParametersLv01.CoarserDimension.y / 2);
+    if (layers >= 2)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+        CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.pullKernel));
+
+        CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionVectorLv1));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 0, ctx.motionVectorLv2));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 1, ctx.reliabilityLv2));
+
+        CHI_VALIDATE(ctx.pCompute->bindConsts(3, 0, &ppParametersLv12, sizeof(ppParametersLv12), 1));
+
+        uint32_t grid[] = { (ppParametersLv12.CoarserDimension.x + 8 - 1) / 8, (ppParametersLv12.CoarserDimension.y + 8 - 1) / 8, 1 };
+        CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+    }
+
+    PushPullParameters ppParametersLv23;
+    ppParametersLv23.FinerDimension = uint2(ppParametersLv12.FinerDimension.x / 2, ppParametersLv12.FinerDimension.y / 2);
+    ppParametersLv23.CoarserDimension = uint2(ppParametersLv12.CoarserDimension.x / 2, ppParametersLv12.CoarserDimension.y / 2);
+    if (layers >= 3)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+        CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.pullKernel));
+
+        CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionVectorLv2));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 0, ctx.motionVectorLv3));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 1, ctx.reliabilityLv3));
+
+        CHI_VALIDATE(ctx.pCompute->bindConsts(3, 0, &ppParametersLv23, sizeof(ppParametersLv23), 1));
+
+        uint32_t grid[] = { (ppParametersLv23.CoarserDimension.x + 8 - 1) / 8, (ppParametersLv23.CoarserDimension.y + 8 - 1) / 8, 1 };
+        CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+    }
+    //Pushing
+    if (layers >= 3)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+        CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.pushKernel));
+
+        CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionVectorLv2));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.motionVectorLv3));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.reliabilityLv2));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.reliabilityLv3));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, ctx.pushedVectorLv2));
+
+        CHI_VALIDATE(ctx.pCompute->bindConsts(5, 0, &ppParametersLv23, sizeof(ppParametersLv23), 1));
+
+        uint32_t grid[] = { (ppParametersLv23.FinerDimension.x + 8 - 1) / 8, (ppParametersLv23.FinerDimension.y + 8 - 1) / 8, 1 };
+        CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+    }
+    if (layers >= 2)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+        CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.pushKernel));
+
+        CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionVectorLv1));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, layers >= 3 ? ctx.pushedVectorLv2 : ctx.motionVectorLv2));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.reliabilityLv1));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.reliabilityLv2));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, ctx.pushedVectorLv1));
+
+        CHI_VALIDATE(ctx.pCompute->bindConsts(5, 0, &ppParametersLv12, sizeof(ppParametersLv12), 1));
+
+        uint32_t grid[] = { (ppParametersLv12.FinerDimension.x + 8 - 1) / 8, (ppParametersLv12.FinerDimension.y + 8 - 1) / 8, 1 };
+        CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+    }
+    if (layers >= 1)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+        CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.laststretchKernel));
+
+        CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionReprojected));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, layers >= 2 ? ctx.pushedVectorLv1 : ctx.motionVectorLv1));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.reliabilityLv1));
+        
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, ctx.motionVectorLv0));
+
+        CHI_VALIDATE(ctx.pCompute->bindConsts(5, 0, &ppParametersLv01, sizeof(ppParametersLv01), 1));
+
+        uint32_t grid[] = { (ppParametersLv01.FinerDimension.x + 8 - 1) / 8, (ppParametersLv01.FinerDimension.y + 8 - 1) / 8, 1 };
+        CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+    }
+
+    return;
 }
 
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
@@ -503,13 +637,9 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
 
                 CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
 
-                //CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
-                //CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.hudLessColor));
-
-                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevDepth));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.depth));
-
-                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.mvec));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.mvec));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevDepth));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.depth));
 
                 CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, ctx.motionReprojectedTipX));
                 CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 1, ctx.motionReprojectedTipY));
@@ -521,17 +651,42 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
-                //CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, {}));
-                //CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, {}));
             }
 
             //MTFKMerging
             {
+                struct MergeParamStruct
+                {
+                    sl::uint2 dimensions;
+                    sl::float2 tipTopDistance;
+                    sl::float2 viewportSize;
+                    sl::float2 viewportInv;
+                };
+                MergeParamStruct mb;
+                mb.dimensions = dimensions;
+                mb.tipTopDistance = tipTopDistance;
+                mb.viewportSize = viewportSize;
+                mb.viewportInv = viewportInv;
 
+                CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.mergeKernel));
+
+                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionReprojectedTipX));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.motionReprojectedTipY));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.motionReprojectedTopX));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.motionReprojectedTopY));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 0, ctx.motionReprojected));
+               
+                CHI_VALIDATE(ctx.pCompute->bindConsts(6, 0, &mb, sizeof(mb), 1));
+
+                CHI_VALIDATE(ctx.pCompute->bindSampler(7, 0, chi::eSamplerLinearMirror));
+
+                CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
             }
 
             //MTFKPushPull
-
+            //addPushPullPasses(ctx, 1);
 
             //MTFKResolution
             {
@@ -554,12 +709,16 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevDepth));
                 CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.hudLessColor));
                 CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.depth));
+
                 CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionVectorLv0));
+                //CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionVectorLv0));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojected));
 
                 CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generatedFrame));
 
                 CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, &rb, sizeof(rb), 1));
+
+                CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
             }

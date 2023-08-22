@@ -43,13 +43,13 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 #endif
     
 #ifdef UNREAL_ENGINE_COORDINATES
-    float2 motionVectorDecoded = motionVector[currentPixelIndex];
-    //float2 motionStaticTip = ComputeStaticVelocityTipTop(screenPos, depthTextureTip[currentPixelIndex], prevClipToClip);
-    //float2 motionStaticTop = ComputeStaticVelocityTopTip(screenPos, depthTextureTop[currentPixelIndex], clipToPrevClip);
+    float2 motionVectorDecoded = motionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
+    //float2 motionStaticTip = ComputeStaticVelocityTipTop(screenPos, depthTextureTip.SampleLevel(bilinearMirroredSampler, viewportUV, 0), prevClipToClip);
+    //float2 motionStaticTop = ComputeStaticVelocityTopTip(screenPos, depthTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0), clipToPrevClip);
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
     //Bruh... Streamline doesn't differentiate static and non-static velocities
-    float2 motionVectorDecoded = motionVector[currentPixelIndex] * viewportInv;
+    float2 motionVectorDecoded = motionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
 #endif
     float2 velocityTipCombined = motionVectorDecoded;
     float2 velocityTopCombined = motionVectorDecoded;

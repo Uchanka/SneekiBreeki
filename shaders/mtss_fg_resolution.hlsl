@@ -6,7 +6,7 @@ Texture2D<float> depthTextureTip;
 Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTop;
 
-Texture2D<float4> motionUnprojected;
+Texture2D<float2> motionUnprojected;
 Texture2D<float4> motionReprojected;
 
 RWTexture2D<float4> outputTexture;
@@ -39,10 +39,10 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 #endif
 
 #ifdef UNREAL_ENGINE_COORDINATES
-	mtss_float4 motionVector = motionReprojected[currentPixelIndex];
+	float4 motionVector = motionReprojected[currentPixelIndex];
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
-    mtss_float4 motionVector = motionReprojected[currentPixelIndex] * float4(viewportInv, viewportInv);
+    float4 motionVector = motionReprojected[currentPixelIndex] * float4(viewportInv, viewportInv);
 #endif
     float2 velocityTipCombined = motionVector.zw;
     float2 velocityTopCombined = motionVector.xy;
@@ -98,10 +98,10 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     }
     else
     {
-		float tipDepthDist = depthTextureTip[currentPixelIndex];
-		float topDepthDist = depthTextureTop[currentPixelIndex];
-        float3 tipColorValue = colorTextureTip[currentPixelIndex];
-        float3 topColorValue = colorTextureTop[currentPixelIndex];
+        float tipDepthDist = depthTextureTip.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
+        float topDepthDist = depthTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
+        float3 tipColorValue = colorTextureTip.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
+        float3 topColorValue = colorTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
 		
         finalSample = tipDepthDist > topDepthDist ? tipColorValue : topColorValue;
     }
@@ -110,7 +110,8 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < viewportSize);
         if (bIsValidhistoryPixel)
         {
-            outputTexture[currentPixelIndex] = float4(tipSample, 1.0f);
+            outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
+            //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex].xy, motionUnprojected[currentPixelIndex].xy);
         }
     }
 }

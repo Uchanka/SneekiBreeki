@@ -9,8 +9,8 @@ RWTexture2D<mtss_float> motionReliability; //This is coarse too
 
 cbuffer shaderConsts : register(b0)
 {
-    uint2 finerDimension;
-    uint2 coarserDimension;
+    uint2 FinerDimension;
+    uint2 CoarserDimension;
 }
 
 #define TILE_SIZE 8
@@ -41,7 +41,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     }
 	
 	{
-        bool bIsValidhistoryPixel = all(uint2(coarserPixelIndex) < coarserDimension);
+        bool bIsValidhistoryPixel = all(uint2(coarserPixelIndex) < CoarserDimension);
         if (bIsValidhistoryPixel)
         {
             motionVectorCoarser[coarserPixelIndex] = filteredVector;
