@@ -228,6 +228,9 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
 
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_clearing_cs, mtss_fg_clearing_cs_len, "mtss_fg_clearing.cs", "main", ctx.clearKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_reprojection_cs, mtss_fg_reprojection_cs_len, "mtss_fg_reprojection.cs", "main", ctx.reprojectionKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_merging_cs, mtss_fg_merging_cs_len, "mtss_fg_merging.cs", "main", ctx.mergeKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_pulling_cs, mtss_fg_pulling_cs_len, "mtss_fg_pulling.cs", "main", ctx.pullKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_pushing_cs, mtss_fg_pushing_cs_len, "mtss_fg_pushing.cs", "main", ctx.pushKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_resolution_cs, mtss_fg_resolution_cs_len, "mtss_fg_resolution.cs", "main", ctx.resolutionKernel));
 
     // ImGUI Plugin not support in out card, it require DX12
@@ -296,6 +299,9 @@ void slOnPluginShutdown()
 
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.clearKernel));
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.reprojectionKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.mergeKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.pullKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.pushKernel));
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.resolutionKernel));
 
     ctx.pCompute->destroyCommandListContext(ctx.pCmdList);
@@ -370,6 +376,11 @@ UINT slHookGetCurrentBackBufferIndex(IDXGISwapChain* SwapChain, bool& Skip)
     return 0;
 }
 
+HRESULT addPushPullPasses(sl::tmpl::MTSSGContext& ctx)
+{
+
+}
+
 HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, bool& Skip)
 {
     auto& ctx = (*tmpl::getContext());
@@ -435,7 +446,7 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
 #endif
 
             sl::uint2 dimensions = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
-            sl::float2 smoothing = sl::float2(1.0f, 1.0f);
+            sl::float2 tipTopDistance = sl::float2(0.5f, 0.5f);
             sl::float2 viewportSize = sl::float2(static_cast<float>(ctx.swapChainWidth), static_cast<float>(ctx.swapChainHeight));
             sl::float2 viewportInv = sl::float2(1.0f / viewportSize.x, 1.0f / viewportSize.y);
 
@@ -445,14 +456,14 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 struct ClearingConstParamStruct
                 {
                     sl::uint2 dimensions;
-                    sl::float2 smoothing;
+                    sl::float2 tipTopDistance;
                     sl::float2 viewportSize;
                     sl::float2 viewportInv;
                 };
                 ClearingConstParamStruct lb;
 
                 lb.dimensions = dimensions;
-                lb.smoothing = smoothing;
+                lb.tipTopDistance = tipTopDistance;
                 lb.viewportSize = viewportSize;
                 lb.viewportInv = viewportInv;
 
@@ -478,7 +489,7 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                     sl::float4x4 clipToPrevClip;
 
                     sl::uint2 dimensions;
-                    sl::float2 smoothing;
+                    sl::float2 tipTopDistance;
                     sl::float2 viewportSize;
                     sl::float2 viewportInv;
                 };
@@ -486,7 +497,7 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
                 memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
                 cb.dimensions = dimensions;
-                cb.smoothing = sl::float2(1.0f, 1.0f);
+                cb.tipTopDistance = tipTopDistance;
                 cb.viewportSize = viewportSize;
                 cb.viewportInv = viewportInv;
 
@@ -514,18 +525,26 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 //CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, {}));
             }
 
+            //MTFKMerging
+            {
+
+            }
+
+            //MTFKPushPull
+
+
             //MTFKResolution
             {
                 struct ResolutionConstParamStruct
                 {
                     sl::uint2 dimensions;
-                    sl::float2 smoothing;
+                    sl::float2 tipTopDistance;
                     sl::float2 viewportSize;
                     sl::float2 viewportInv;
                 };
                 ResolutionConstParamStruct rb;
                 rb.dimensions = dimensions;
-                rb.smoothing = sl::float2(1.0f, 1.0f);
+                rb.tipTopDistance = tipTopDistance;
                 rb.viewportSize = viewportSize;
                 rb.viewportInv = viewportInv;
 

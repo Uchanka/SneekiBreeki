@@ -10,7 +10,7 @@ RWTexture2D<uint> motionReprojTopY;
 cbuffer shaderConsts : register(b0)
 {
     uint2 dimensions;
-    float2 smoothing;
+    float2 distance;
     float2 viewportSize;
     float2 viewportInv;
 }
@@ -28,7 +28,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     bool bIsValidPixel = all(uint2(currentPixelIndex) < dimensions);
     if (bIsValidPixel)
     {
-        reprojectedTip[currentPixelIndex] = mtss_float4(0.0f, 0.0f, 0.0f, 0.0f);
-        reprojectedTop[currentPixelIndex] = mtss_float4(0.0f, 0.0f, 0.0f, 0.0f);
+        motionReprojTipX[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojTipY[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojTopX[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojTopY[currentPixelIndex] = UnwrittenPackedClearValue;
     }
 }

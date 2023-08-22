@@ -1,18 +1,15 @@
 // Copyright (c) 2023 Moore Threads Technology Co. Ltd. All rights reserved.
 #include "mtss_common.hlsli"
 
+//------------------------------------------------------- PARAMETERS
+Texture2D<float2> motionVector;
 Texture2D<float> depthTextureTip;
 Texture2D<float> depthTextureTop;
 
-Texture2D<float2> motionVector;
-
-RWTexture2D<uint> motionReprojectedTipX;
-RWTexture2D<uint> motionReprojectedTipY;
-RWTexture2D<uint> motionReprojectedTopX;
-RWTexture2D<uint> motionReprojectedTopY;
-
-//#define UNREAL_ENGINE_COORDINATES
-#define NVRHI_DONUT_COORDINATES
+RWTexture2D<uint> motionReprojTipX;
+RWTexture2D<uint> motionReprojTipY;
+RWTexture2D<uint> motionReprojTopX;
+RWTexture2D<uint> motionReprojTopY;
 
 cbuffer shaderConsts : register(b0)
 {
@@ -20,7 +17,7 @@ cbuffer shaderConsts : register(b0)
     float4x4 clipToPrevClip;
     
     uint2 dimensions;
-    float2 smoothing;
+    float2 tipTopDistance;
     float2 viewportSize;
     float2 viewportInv;
 };
@@ -28,7 +25,7 @@ cbuffer shaderConsts : register(b0)
 SamplerState bilinearMirroredSampler : register(s0);
 
 #define TILE_SIZE 8
-
+//------------------------------------------------------- ENTRY POINT
 [shader("compute")]
 [numthreads(TILE_SIZE, TILE_SIZE, 1)]
 void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint groupThreadIndex : SV_GroupIndex)
@@ -58,10 +55,8 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 velocityTopCombined = motionVectorDecoded;
 
     //What if we need to interpolate multiple frames?
-    const float interpolatedFrames = 1.0f;
-    const float currentInterpol = 0.0f;
-    const float distanceTip = (currentInterpol + 1.0f) / (interpolatedFrames + 1.0f);
-    const float distanceTop = 1.0f - distanceTip;
+    const float distanceTip = tipTopDistance.x;
+    const float distanceTop = tipTopDistance.y;
 	
     float2 tipTranslation = velocityTipCombined * distanceTip;
     float2 topTranslation = velocityTopCombined * distanceTop;
@@ -107,21 +102,33 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 	
-	mtss_float3 tipSample = colorTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
-	mtss_float3 topSample = colorTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
-	mtss_float tipDepth = depthTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
-	mtss_float topDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
+	float tipDepth = depthTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
+	float topDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
+	
+    uint tipDepthAsUIntHigh19 = compressDepth(tipDepth);
+    uint topDepthAsUIntHigh19 = compressDepth(topDepth);
+	
+    uint packedAsUINTHigh19TipX = tipDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19TipY = tipDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19TopX = topDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19TopY = topDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
 	
 	{
         bool bIsValidTipPixel = all(tipTracedIndex < int2(dimensions)) && all(tipTracedIndex >= int2(0, 0));
         if (bIsValidTipPixel)
         {
-            reprojectedTip[tipTracedIndex] = mtss_float4(tipSample, tipDepth);
+            uint originalValX;
+            uint originalValY;
+            InterlockedMax(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
+            InterlockedMax(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
         }
         bool bIsValidTopPixel = all(topTracedIndex < int2(dimensions)) && all(topTracedIndex >= int2(0, 0));
         if (bIsValidTopPixel)
         {
-            reprojectedTop[topTracedIndex] = mtss_float4(topSample, topDepth);
+            uint originalValX;
+            uint originalValY;
+            InterlockedMax(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
+            InterlockedMax(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
         }
     }
 }

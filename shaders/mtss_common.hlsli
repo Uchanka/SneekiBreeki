@@ -19,6 +19,70 @@ uint2 ZOrder2DMTSS(uint Index, const uint SizeLog2)
     return Coord;
 }
 
+//#define UNREAL_ENGINE_COORDINATES
+#define NVRHI_DONUT_COORDINATES
+
+#define DepthFirst19DigitsMask 0xFFFFE000
+#define DepthFirst31DigitsMask 0xFFFFFFFE
+
+#define MaxDepthFirst19Digits 0xFFFF0000
+#define MinDepthFirst19Digits 0x00000000
+
+#define IndexLast13DigitsMask 0x00001FFF
+
+#define UnwrittenLast13DigitsMask 0x00000000
+
+#define UnwrittenLast1DigitMT1 0x00000000
+#define WrittenLast1DigitMT1 0x00000001
+
+static uint UnwrittenPackedClearValue = MinDepthFirst19Digits | UnwrittenLast13DigitsMask;
+static uint UnwrittenIndexIndicator = UnwrittenLast13DigitsMask;
+static uint UnwrittenMTSSIndicator = UnwrittenLast1DigitMT1;
+static uint WrittenMTSSIndicator = WrittenLast1DigitMT1;
+
+#ifdef UNREAL_ENGINE_COORDINATES
+static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+static float ImpossibleMotionVecValue = 8192.0f; //Have to use this 2's power to prevent floating point gimmicks
+#endif
+
+//static int depthTotalBits = 19;
+static int expCustomized = 7;
+static int manCustomized = 12;
+
+//Nasha depth: No sig, 7bits exp, 12bits mantissa
+uint compressDepth(float incomingDepth)
+{
+    float incomingAs32F = float(incomingDepth);
+    uint incoming32Uint = asuint(incomingAs32F);
+	
+    int sig32 = (incoming32Uint >> 31) & 0x1;
+    int exp32 = (incoming32Uint >> 23) & 0xFF;
+    int man32 = incoming32Uint & 0x7FFFFF;
+	
+    int sig19 = sig32; //Not gonna use it
+    int exp19 = exp32 - 127 + ((1 << (expCustomized - 1)) - 1);
+    int man19 = man32 >> (23 - manCustomized);
+
+    if (exp19 <= 0)
+    {
+        int man32Denorm = (man32 | (1 << 24)) >> (1 - exp19);
+        man19 = man32Denorm >> (23 - manCustomized);
+        if (man32Denorm & (1 << (23 - manCustomized - 1)))
+        {
+            man19 += 1;
+        }
+        exp19 = 0;
+    }
+	
+    uint returning19Uint = 0;
+	//returning16Uint |= (sig16 << 15);
+    returning19Uint |= (exp19 << manCustomized);
+    returning19Uint |= man19;
+	
+    return (returning19Uint << (32 - (expCustomized + manCustomized))) & DepthFirst19DigitsMask;
+}
 
 mtss_float SafeRcp(mtss_float x)
 {
