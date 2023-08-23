@@ -1121,7 +1121,8 @@ ComputeStatus D3D11::createTexture2DResourceSharedImpl(ResourceDescription &InOu
     {
         InOutResourceDesc.flags &= ~ResourceFlags::eShaderResourceStorage;
     }
-    if (formatSupport & D3D11_FORMAT_SUPPORT_SHADER_SAMPLE)
+
+    if (formatSupport & D3D11_FORMAT_SUPPORT_TEXTURE2D)
     {
         desc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
     }
