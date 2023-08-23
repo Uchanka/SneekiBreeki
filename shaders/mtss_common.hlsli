@@ -35,7 +35,12 @@ uint2 ZOrder2DMTSS(uint Index, const uint SizeLog2)
 #define UnwrittenLast1DigitMT1 0x00000000
 #define WrittenLast1DigitMT1 0x00000001
 
+#ifdef UNREAL_ENGINE_COORDINATES
 static uint UnwrittenPackedClearValue = MinDepthFirst19Digits | UnwrittenLast13DigitsMask;
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+static uint UnwrittenPackedClearValue = MinDepthFirst19Digits | UnwrittenLast13DigitsMask;
+#endif
 static uint UnwrittenIndexIndicator = UnwrittenLast13DigitsMask;
 static uint UnwrittenMTSSIndicator = UnwrittenLast1DigitMT1;
 static uint WrittenMTSSIndicator = WrittenLast1DigitMT1;
@@ -44,7 +49,7 @@ static uint WrittenMTSSIndicator = WrittenLast1DigitMT1;
 static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
-static float ImpossibleMotionVecValue = 8192.0f; //Have to use this 2's power to prevent floating point gimmicks
+static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
 #endif
 
 //static int depthTotalBits = 19;

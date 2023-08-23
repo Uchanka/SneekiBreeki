@@ -2,10 +2,10 @@
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-Texture2D<uint> motionReprojTipX;
-Texture2D<uint> motionReprojTipY;
-Texture2D<uint> motionReprojTopX;
-Texture2D<uint> motionReprojTopY;
+RWTexture2D<uint> motionReprojTipX;
+RWTexture2D<uint> motionReprojTipY;
+RWTexture2D<uint> motionReprojTopX;
+RWTexture2D<uint> motionReprojTopY;
 
 Texture2D<float2> motionUnprojected;
 RWTexture2D<float4> motionReprojected;
@@ -59,7 +59,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTip = clamp(motionCaliberatedUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-	float2 motionTipCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTip, 0);
+	float2 motionTipCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTip, 0) * viewportInv;
     if (bIsTipUnwritten)
     {
         motionTipCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
@@ -82,7 +82,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-    float2 motionTopCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0);
+    float2 motionTopCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0) * viewportInv;
     if (bIsTopUnwritten)
     {
         motionTopCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);

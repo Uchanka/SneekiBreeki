@@ -49,7 +49,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 	float4 motionVector = motionReprojected[currentPixelIndex];
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
-    float4 motionVector = motionReprojected[currentPixelIndex] * float4(viewportInv, viewportInv);
+    float4 motionVector = motionReprojected[currentPixelIndex];
 #endif
     float2 velocityTipCombined = motionVector.zw;
     float2 velocityTopCombined = motionVector.xy;
@@ -94,17 +94,17 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     if (isTipVisible == 1 && isTopVisible == 1)
     {
         finalSample = tipDepth > topDepth ? tipSample : topSample;
-        finalSample = debugRed;
+        //finalSample = debugRed;
     }
     else if (isTipVisible == 1)
     {
         finalSample = tipSample;
-        finalSample = debugYellow;
+        //finalSample = debugYellow;
     }
     else if (isTopVisible == 1)
     {
         finalSample = topSample;
-        finalSample = debugGreen;
+        //finalSample = debugGreen;
     }
     else
     {
@@ -114,15 +114,16 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         float3 topColorValue = colorTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
 		
         finalSample = tipDepthDist > topDepthDist ? tipColorValue : topColorValue;
-        finalSample = debugMagenta;
+        //finalSample = debugMagenta;
     }
 	
 	{
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < viewportSize);
         if (bIsValidhistoryPixel)
         {
-            outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
-            //outputTexture[currentPixelIndex] = float4(motionReprojected[currentPixelIndex].xy, motionReprojected[currentPixelIndex].zw);
+            //outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
+            //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex], motionUnprojected[currentPixelIndex]);
+            outputTexture[currentPixelIndex] = motionVector;
         }
     }
 }

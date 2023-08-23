@@ -119,16 +119,28 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         {
             uint originalValX;
             uint originalValY;
+#ifdef UNREAL_ENGINE_COORDINATES
             InterlockedMax(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
             InterlockedMax(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+            InterlockedMax(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
+            InterlockedMax(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
+#endif 
         }
         bool bIsValidTopPixel = all(topTracedIndex < int2(dimensions)) && all(topTracedIndex >= int2(0, 0));
         if (bIsValidTopPixel)
         {
             uint originalValX;
             uint originalValY;
+#ifdef UNREAL_ENGINE_COORDINATES
             InterlockedMax(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
             InterlockedMax(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
+#endif
+#ifdef NVRHI_DONUT_COORDINATES
+            InterlockedMax(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
+            InterlockedMax(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
+#endif 
         }
     }
 }

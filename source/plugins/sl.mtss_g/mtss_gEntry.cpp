@@ -337,31 +337,31 @@ HRESULT slHookCreateSwapChain(IDXGIFactory* pFactory, IUnknown* pDevice, DXGI_SW
     ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTopX, "motionReprojectedTopX");
     ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTopY, "motionReprojectedTopY");
 
-    desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.motionReprojected, "motionReprojected");
     ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv0, "motionVectorLv0");
 
     desc.width /= 2;
     desc.height /= 2;
-    desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv1, "motionVectorLv1");
     ctx.pCompute->createTexture2D(desc, ctx.pushedVectorLv1, "pushedVectorLv1");
-    desc.nativeFormat = DXGI_FORMAT_R16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv1, "reliabilityLv1");
 
     desc.width /= 2;
     desc.height /= 2;
-    desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv2, "motionVectorLv2");
     ctx.pCompute->createTexture2D(desc, ctx.pushedVectorLv2, "pushedVectorLv2");
-    desc.nativeFormat = DXGI_FORMAT_R16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv2, "reliabilityLv2");
 
     desc.width /= 2;
     desc.height /= 2;
-    desc.nativeFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv1, "motionVectorLv3");
-    desc.nativeFormat = DXGI_FORMAT_R16_FLOAT;
+    desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
     ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv1, "reliabilityLv3");
 
     return hr;
@@ -416,6 +416,9 @@ void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 
         uint32_t grid[] = { (ppParametersLv01.CoarserDimension.x + 8 - 1) / 8, (ppParametersLv01.CoarserDimension.y + 8 - 1) / 8, 1 };
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 0, {}));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 1, {}));
     }
 
     PushPullParameters ppParametersLv12;
@@ -436,6 +439,9 @@ void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 
         uint32_t grid[] = { (ppParametersLv12.CoarserDimension.x + 8 - 1) / 8, (ppParametersLv12.CoarserDimension.y + 8 - 1) / 8, 1 };
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 0, {}));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 1, {}));
     }
 
     PushPullParameters ppParametersLv23;
@@ -456,6 +462,9 @@ void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 
         uint32_t grid[] = { (ppParametersLv23.CoarserDimension.x + 8 - 1) / 8, (ppParametersLv23.CoarserDimension.y + 8 - 1) / 8, 1 };
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 0, {}));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 1, {}));
     }
     //Pushing
     if (layers >= 3)
@@ -475,6 +484,8 @@ void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 
         uint32_t grid[] = { (ppParametersLv23.FinerDimension.x + 8 - 1) / 8, (ppParametersLv23.FinerDimension.y + 8 - 1) / 8, 1 };
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, {}));
     }
     if (layers >= 2)
     {
@@ -493,6 +504,8 @@ void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 
         uint32_t grid[] = { (ppParametersLv12.FinerDimension.x + 8 - 1) / 8, (ppParametersLv12.FinerDimension.y + 8 - 1) / 8, 1 };
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, {}));
     }
     if (layers >= 1)
     {
@@ -510,6 +523,8 @@ void addPushPullPasses(sl::tmpl::MTSSGContext& ctx, const int layers = 3)
 
         uint32_t grid[] = { (ppParametersLv01.FinerDimension.x + 8 - 1) / 8, (ppParametersLv01.FinerDimension.y + 8 - 1) / 8, 1 };
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, {}));
     }
 
     return;
@@ -613,6 +628,11 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 CHI_VALIDATE(ctx.pCompute->bindConsts(4, 0, &lb, sizeof(lb), 1));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, {}));
             }
 
             //MTFKReprojection
@@ -651,6 +671,11 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
                 CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 1, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 2, {}));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 3, {}));
             }
 
             //MTFKMerging
@@ -670,19 +695,22 @@ HRESULT slHookPresent(IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, 
 
                 CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.mergeKernel));
 
-                CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.motionReprojectedTipX));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.motionReprojectedTipY));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.motionReprojectedTopX));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.motionReprojectedTopY));
-                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.motionReprojectedTipX));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.motionReprojectedTipY));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedTopX));
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, ctx.motionReprojectedTopY));
 
-                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 0, ctx.motionReprojected));
+                CHI_VALIDATE(ctx.pCompute->bindTexture(4, 0, ctx.mvec));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 4, ctx.motionReprojected));
                
                 CHI_VALIDATE(ctx.pCompute->bindConsts(6, 0, &mb, sizeof(mb), 1));
 
                 CHI_VALIDATE(ctx.pCompute->bindSampler(7, 0, chi::eSamplerLinearMirror));
 
                 CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+                CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 4, {}));
             }
 
             //MTFKPushPull
