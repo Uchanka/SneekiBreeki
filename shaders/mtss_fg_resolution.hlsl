@@ -44,13 +44,8 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 #ifdef NVRHI_DONUT_COORDINATES
     float2 screenPos = viewportUV;
 #endif
-
-#ifdef UNREAL_ENGINE_COORDINATES
-	float4 motionVector = motionReprojected[currentPixelIndex];
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
     float4 motionVector = motionReprojected[currentPixelIndex];
-#endif
+    
     float2 velocityTipCombined = motionVector.zw;
     float2 velocityTopCombined = motionVector.xy;
 	
@@ -93,7 +88,12 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float3 finalSample = float3(0.0f, 0.0f, 0.0f);
     if (isTipVisible == 1 && isTopVisible == 1)
     {
+#ifdef DEPTH_LESSER_CLOSER
+        finalSample = tipDepth < topDepth ? tipSample : topSample;
+#endif
+#ifdef DEPTH_GREATER_CLOSER
         finalSample = tipDepth > topDepth ? tipSample : topSample;
+#endif
         //finalSample = debugRed;
     }
     else if (isTipVisible == 1)
@@ -112,8 +112,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         float topDepthDist = depthTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
         float3 tipColorValue = colorTextureTip.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
         float3 topColorValue = colorTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
-		
-        finalSample = tipDepthDist > topDepthDist ? tipColorValue : topColorValue;
+        
+#ifdef DEPTH_LESSER_CLOSER
+        float depthAlpha = (1.0f - topDepth) * SafeRcp(2.0f - tipDepth - topDepth);
+#endif
+#ifdef DEPTH_GREATER_CLOSER
+        float depthAlpha = topDepth * SafeRcp(tipDepth + topDepth);
+#endif
+        finalSample = lerp(tipColorValue, topColorValue, depthAlpha);
         //finalSample = debugMagenta;
     }
 	

@@ -119,11 +119,11 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         {
             uint originalValX;
             uint originalValY;
-#ifdef UNREAL_ENGINE_COORDINATES
-            InterlockedMax(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
-            InterlockedMax(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
+#ifdef DEPTH_LESSER_CLOSER
+            InterlockedMin(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
+            InterlockedMin(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
 #endif
-#ifdef NVRHI_DONUT_COORDINATES
+#ifdef DEPTH_GREATER_CLOSER
             InterlockedMax(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
             InterlockedMax(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
 #endif 
@@ -133,11 +133,11 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         {
             uint originalValX;
             uint originalValY;
-#ifdef UNREAL_ENGINE_COORDINATES
-            InterlockedMax(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
-            InterlockedMax(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
+#ifdef DEPTH_LESSER_CLOSER
+            InterlockedMin(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
+            InterlockedMin(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
 #endif
-#ifdef NVRHI_DONUT_COORDINATES
+#ifdef DEPTH_GREATER_CLOSER
             InterlockedMax(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
             InterlockedMax(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
 #endif 

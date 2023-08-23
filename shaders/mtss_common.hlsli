@@ -22,6 +22,9 @@ uint2 ZOrder2DMTSS(uint Index, const uint SizeLog2)
 //#define UNREAL_ENGINE_COORDINATES
 #define NVRHI_DONUT_COORDINATES
 
+//#define DEPTH_LESSER_CLOSER
+#define DEPTH_GREATER_CLOSER
+
 #define DepthFirst19DigitsMask 0xFFFFE000
 #define DepthFirst31DigitsMask 0xFFFFFFFE
 
@@ -35,10 +38,10 @@ uint2 ZOrder2DMTSS(uint Index, const uint SizeLog2)
 #define UnwrittenLast1DigitMT1 0x00000000
 #define WrittenLast1DigitMT1 0x00000001
 
-#ifdef UNREAL_ENGINE_COORDINATES
-static uint UnwrittenPackedClearValue = MinDepthFirst19Digits | UnwrittenLast13DigitsMask;
+#ifdef DEPTH_LESSER_CLOSER
+static uint UnwrittenPackedClearValue = MaxDepthFirst19Digits | UnwrittenLast13DigitsMask;
 #endif
-#ifdef NVRHI_DONUT_COORDINATES
+#ifdef DEPTH_GREATER_CLOSER
 static uint UnwrittenPackedClearValue = MinDepthFirst19Digits | UnwrittenLast13DigitsMask;
 #endif
 static uint UnwrittenIndexIndicator = UnwrittenLast13DigitsMask;
