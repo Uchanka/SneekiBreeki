@@ -121,9 +121,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < viewportSize);
         if (bIsValidhistoryPixel)
         {
-            //outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
+            outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
             //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex], motionUnprojected[currentPixelIndex]);
-            outputTexture[currentPixelIndex] = motionVector;
+            //outputTexture[currentPixelIndex] = motionVector;
         }
     }
 }
