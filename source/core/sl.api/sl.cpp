@@ -302,6 +302,10 @@ Result slSetConstants(const Constants& values, const FrameToken& frame, const Vi
     SL_EXCEPTION_HANDLE_START;
     SL_CHECK(slValidateState());
     const sl::plugin_manager::FeatureContext* ctx;
+    if (slValidateFeatureContext(kFeatureMTSS_G, ctx) == sl::Result::eOk && ctx->setConstants != nullptr)
+    {
+        ctx->setConstants(values, frame, viewport);
+    }
     SL_CHECK(slValidateFeatureContext(kFeatureCommon, ctx));
     return ctx->setConstants(values, frame, viewport);
     SL_EXCEPTION_HANDLE_END_RETURN(Result::eErrorExceptionHandler);
