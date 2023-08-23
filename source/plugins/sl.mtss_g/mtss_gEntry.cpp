@@ -137,9 +137,6 @@ namespace sl
             sl::chi::Resource pushedVectorLv1{};
             sl::chi::Resource pushedVectorLv2{};
 
-            sl::chi::Resource prevDepth{};
-            sl::chi::Resource prevHudLessColor{};
-
             // Compute API
             RenderAPI platform = RenderAPI::eD3D11;
             chi::ICompute* pCompute{};
