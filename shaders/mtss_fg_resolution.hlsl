@@ -3,10 +3,10 @@
 
 Texture2D<float3> colorTextureTip;
 Texture2D<float> depthTextureTip;
+Texture2D<float2> prevMotionUnprojected;
+
 Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTop;
-
-Texture2D<float2> prevMotionUnprojected;
 Texture2D<float2> currMotionUnprojected;
 
 Texture2D<float4> motionReprojected;
@@ -132,9 +132,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < viewportSize);
         if (bIsValidhistoryPixel)
         {
-            //outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
+            outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
             //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex], motionUnprojected[currentPixelIndex]);
-            outputTexture[currentPixelIndex] = float4(velocityTopCombined, velocityTipCombined) * 10.0f;
+            //outputTexture[currentPixelIndex] = float4(velocityTopCombined, velocityTipCombined) * 10.0f;
         }
     }
 }
