@@ -487,12 +487,12 @@ namespace sl
                 desc.width /= 2;
                 desc.height /= 2;
                 desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
-                status = ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv1, "motionVectorLv3");
+                status = ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv3, "motionVectorLv3");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
                 // ------------------------------------------------------------------------------------------------
                 desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
-                status = ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv1, "reliabilityLv3");
+                status = ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv3, "reliabilityLv3");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
                 ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
