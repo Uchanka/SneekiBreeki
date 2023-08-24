@@ -52,6 +52,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     int isTipVisible = any(velocityTipCombined == ImpossibleMotionVecValue) ? 0 : 1;
     int isTopVisible = any(velocityTopCombined == ImpossibleMotionVecValue) ? 0 : 1;
     
+    velocityTipCombined *= viewportInv;
+    velocityTopCombined *= viewportInv;
+    
     const float distanceTip = tipTopDistance.x;
     const float distanceTop = tipTopDistance.y;
 	
@@ -129,7 +132,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         {
             outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
             //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex], motionUnprojected[currentPixelIndex]);
-            //outputTexture[currentPixelIndex] = motionVector;
+            //outputTexture[currentPixelIndex] = float4(velocityTopCombined, velocityTipCombined) * 10.0f;
         }
     }
 }
