@@ -112,9 +112,11 @@ namespace sl
 
             Constants* commonConsts{};
             // Our tagged inputs
-            CommonResource mvec{};
+
+            CommonResource currMvec{};
             CommonResource currDepth{};
             CommonResource currHudLessColor{};
+            sl::chi::Resource prevMvec{};
             sl::chi::Resource prevDepth{};
             sl::chi::Resource prevHudLessColor{};
 
@@ -274,6 +276,25 @@ namespace sl
             return ctx.state.status == MTSSGStatus::eOk;
         }
 
+        uint32_t calcResourceUsageBytes(const sl::chi::Resource& resource, uint32_t count = 1)
+        {
+            auto&    ctx        = (*mtssg::getContext());
+            uint32_t usageBytes = 0;
+
+            sl::chi::Format chiFormat{};
+            size_t          formatBpp{};
+            CHI_VALIDATE(ctx.pCompute->getFormat(resource->nativeFormat, chiFormat));
+            CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(chiFormat, formatBpp));
+
+            uint32_t width = resource->width;
+            uint32_t height = resource->height;
+            assert(width != 0);
+            assert(height != 0);
+
+            usageBytes = width * height * formatBpp * count;
+            return usageBytes;
+        }
+
         uint32_t calcEstimatedVRAMUsageInBytes()
         {
             auto& ctx = (*mtssg::getContext());
@@ -281,64 +302,53 @@ namespace sl
             uint32_t vRAMUsageInBytes = 0;
 
             {
-                sl::chi::Format generatedFrameFormat{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.swapChainFormat, generatedFrameFormat));
-                size_t generatedFrameBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(generatedFrameFormat, generatedFrameBpp));
-                // We have ctx.generateFrame and prev frame copy(ctx.referFrame)
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * generatedFrameBpp * 2;
+                // generatedFrame, appSurfaceBackup
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.generatedFrame, 2);
             }
 
             {
-                sl::chi::Format reprojectedFormat{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.motionReprojectedTipX->nativeFormat, reprojectedFormat));
-                size_t reprojectedBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(reprojectedFormat, reprojectedBpp));
-                // We have ctx.motionReprojectedTipX, motionReprojectedTipY, motionReprojectedTopX and motionReprojectedTopY
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp * 4;
+                // motionReprojectedTipX, motionReprojectedTipY, motionReprojectedTopX and motionReprojectedTopY
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.motionReprojectedTipX, 4);
             }
 
             {
-                sl::chi::Format reprojectedFormatTotal{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.motionReprojected->nativeFormat, reprojectedFormatTotal));
-                size_t reprojectedBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(reprojectedFormatTotal, reprojectedBpp));
-                // We have ctx.motionReprojected
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp;
+                // motionReprojected, motionVectorLv0
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.motionReprojected, 2);
             }
 
             {
-                sl::chi::Format motionLvFormatTotal{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.motionVectorLv0->nativeFormat, motionLvFormatTotal));
-                size_t reprojectedBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(motionLvFormatTotal, reprojectedBpp));
-                // We have ctx.motionVectorLv0123
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp * (1.0f + 1.0f / 4.0f + 1.0f / 16.0f + 1.0f / 64.0f);
+                // motionVectorLv1, pushedVectorLv1
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.motionVectorLv1, 2);
             }
+           
             {
-                sl::chi::Format reliabilityLvFormatTotal{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.reliabilityLv1->nativeFormat, reliabilityLvFormatTotal));
-                size_t reprojectedBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(reliabilityLvFormatTotal, reprojectedBpp));
-                // We have ctx.reliabilityLv123
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp * (1.0f / 4.0f + 1.0f / 16.0f + 1.0f / 64.0f);
+                // reliabilityLv1
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.reliabilityLv1);
             }
+
             {
-                sl::chi::Format pushedLvFormatTotal{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.pushedVectorLv1->nativeFormat, pushedLvFormatTotal));
-                size_t reprojectedBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(pushedLvFormatTotal, reprojectedBpp));
-                // We have ctx.pushedVectorLv12
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * reprojectedBpp * (1.0f / 4.0f + 1.0f / 16.0f);
+                // motionVectorLv2, pushedVectorLv2
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.motionVectorLv2, 2);
+            }
+
+            {
+                // reliabilityLv2
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.reliabilityLv2);
+            }
+
+            {
+                // motionVectorLv3
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.motionVectorLv3);
+            }
+
+            {
+                // reliabilityLv3
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.reliabilityLv3);
             }
 
             if (ctx.prevDepth)
             {
-                sl::chi::Format depthFromat{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevDepth->nativeFormat, depthFromat));
-                size_t depthBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(depthFromat, depthBpp));
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.prevDepth);
             }
             else
             {
@@ -349,19 +359,11 @@ namespace sl
 
             if (ctx.prevHudLessColor)
             {
-                sl::chi::Format hudLessColorFormat{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.prevHudLessColor->nativeFormat, hudLessColorFormat));
-                size_t hudLessColorBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.prevHudLessColor);
             }
             else
             {
-                sl::chi::Format hudLessColorFormat{};
-                CHI_VALIDATE(ctx.pCompute->getFormat(ctx.swapChainFormat, hudLessColorFormat));
-                size_t hudLessColorBpp{};
-                CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(hudLessColorFormat, hudLessColorBpp));
-                vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * hudLessColorBpp;
+                vRAMUsageInBytes += calcResourceUsageBytes(ctx.generatedFrame);
             }
 
             return vRAMUsageInBytes;
@@ -437,6 +439,7 @@ namespace sl
                 SL_LOG_INFO("createGeneratedFrame width: %u -> %u, height: %u -> %u, format: %u -> %u, pFrame: %p -> %p", oldWidth, width, oldHeight, height,
                     static_cast<uint32_t>(oldFormat), static_cast<uint32_t>(format), pOldFrame, ctx.generatedFrame);
 
+                // ------------------------------------------------------------------------------------------------
                 desc.nativeFormat = DXGI_FORMAT_R32_UINT;
                 status = ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTipX, "motionReprojectedTipX");
                 assert(status == sl::chi::ComputeStatus::eOk);
@@ -447,12 +450,14 @@ namespace sl
                 status = ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedTopY, "motionReprojectedTopY");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
+                // ------------------------------------------------------------------------------------------------
                 desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
                 status = ctx.pCompute->createTexture2D(desc, ctx.motionReprojected, "motionReprojected");
                 assert(status == sl::chi::ComputeStatus::eOk);
                 status = ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv0, "motionVectorLv0");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
+                // ------------------------------------------------------------------------------------------------
                 desc.width /= 2;
                 desc.height /= 2;
                 desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -460,10 +465,13 @@ namespace sl
                 assert(status == sl::chi::ComputeStatus::eOk);
                 status = ctx.pCompute->createTexture2D(desc, ctx.pushedVectorLv1, "pushedVectorLv1");
                 assert(status == sl::chi::ComputeStatus::eOk);
+
+                // ------------------------------------------------------------------------------------------------
                 desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
                 status = ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv1, "reliabilityLv1");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
+                // ------------------------------------------------------------------------------------------------
                 desc.width /= 2;
                 desc.height /= 2;
                 desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -471,17 +479,22 @@ namespace sl
                 assert(status == sl::chi::ComputeStatus::eOk);
                 status = ctx.pCompute->createTexture2D(desc, ctx.pushedVectorLv2, "pushedVectorLv2");
                 assert(status == sl::chi::ComputeStatus::eOk);
+
+                // ------------------------------------------------------------------------------------------------
                 desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
                 status = ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv2, "reliabilityLv2");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
+                // ------------------------------------------------------------------------------------------------
                 desc.width /= 2;
                 desc.height /= 2;
                 desc.nativeFormat = DXGI_FORMAT_R32G32B32A32_FLOAT;
-                status = ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv1, "motionVectorLv3");
+                status = ctx.pCompute->createTexture2D(desc, ctx.motionVectorLv3, "motionVectorLv3");
                 assert(status == sl::chi::ComputeStatus::eOk);
+
+                // ------------------------------------------------------------------------------------------------
                 desc.nativeFormat = DXGI_FORMAT_R32_FLOAT;
-                status = ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv1, "reliabilityLv3");
+                status = ctx.pCompute->createTexture2D(desc, ctx.reliabilityLv3, "reliabilityLv3");
                 assert(status == sl::chi::ComputeStatus::eOk);
 
                 ctx.state.estimatedVRAMUsageInBytes = calcEstimatedVRAMUsageInBytes();
@@ -509,7 +522,7 @@ namespace sl
 
             sl::CommonResource mvecRes{};
             getTaggedResource(kBufferTypeMotionVectors, mvecRes, viewportId);
-            if (static_cast<void*>(mvecRes) != static_cast<void*>(ctx.mvec))
+            if (static_cast<void*>(mvecRes) != static_cast<void*>(ctx.currMvec))
             {
                 return true;
             }
@@ -530,7 +543,7 @@ namespace sl
 
             if (ret == sl::Result::eOk)
             {
-                ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, viewportId);
+                ret = getTaggedResource(kBufferTypeMotionVectors, ctx.currMvec, viewportId);
             }
 
             if (ret != sl::Result::eOk)
@@ -545,13 +558,17 @@ namespace sl
         sl::Result cloneTaggedResource(
             const sl::CommonResource& currHudLessColor,
             const sl::CommonResource& currDepth,
+
+            const sl::CommonResource& currMvec,
             sl::chi::Resource& clonedHudLessColor,
-            sl::chi::Resource& clonedDepth)
+            sl::chi::Resource& clonedDepth,
+            sl::chi::Resource& clonedMvec)
         {
             auto& ctx = (*mtssg::getContext());
 
-            cloneResource(currHudLessColor, clonedHudLessColor, "prev hudless color");
-            cloneResource(currDepth, clonedDepth, "prev depth");
+            CHI_VALIDATE(cloneResource(currHudLessColor, clonedHudLessColor, "prev hudless color"));
+            CHI_VALIDATE(cloneResource(currDepth, clonedDepth, "prev depth"));
+            CHI_VALIDATE(cloneResource(currMvec, clonedMvec, "prev mvec"));
 
             return sl::Result::eOk;
         }
@@ -752,25 +769,26 @@ namespace sl
 
             CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
 
-            CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.mvec));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevDepth));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.currDepth));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevMvec));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.currMvec));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
 
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, ctx.motionReprojectedTipX));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 1, ctx.motionReprojectedTipY));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 2, ctx.motionReprojectedTopX));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 3, ctx.motionReprojectedTopY));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, ctx.motionReprojectedTipX));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 1, ctx.motionReprojectedTipY));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 2, ctx.motionReprojectedTopX));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(7, 3, ctx.motionReprojectedTopY));
 
-            CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
+            CHI_VALIDATE(ctx.pCompute->bindConsts(8, 0, pCb, sizeof(*pCb), 1));
 
-            CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
+            CHI_VALIDATE(ctx.pCompute->bindSampler(9, 0, chi::eSamplerLinearMirror));
 
             CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, {}));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 1, {}));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 2, {}));
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 3, {}));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, {}));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 1, {}));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 2, {}));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(7, 3, {}));
         }
 
         void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t grid[])
@@ -784,17 +802,18 @@ namespace sl
             CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedTopX));
             CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, ctx.motionReprojectedTopY));
 
-            CHI_VALIDATE(ctx.pCompute->bindTexture(4, 0, ctx.mvec));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, ctx.motionReprojected));
 
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 4, ctx.motionReprojected));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(5, 0, ctx.prevMvec));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(6, 1, ctx.currMvec));
 
-            CHI_VALIDATE(ctx.pCompute->bindConsts(6, 0, pCb, sizeof(*pCb), 1));
+            CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
 
-            CHI_VALIDATE(ctx.pCompute->bindSampler(7, 0, chi::eSamplerLinearMirror));
+            CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
 
             CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 4, {}));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, {}));
         }
 
         void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb, uint32_t grid[])
@@ -805,16 +824,18 @@ namespace sl
 
             CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
             CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevDepth));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.currHudLessColor));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevMvec));
 
-            CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
-            //CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionVectorLv0));
-            CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojected));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currHudLessColor));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currDepth));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.currMvec));
 
-            CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generatedFrame));
+            //CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionVectorLv0));
+            CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojected));
 
-            CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
+            CHI_VALIDATE(ctx.pCompute->bindRWTexture(7, 0, ctx.generatedFrame));
+
+            CHI_VALIDATE(ctx.pCompute->bindConsts(8, 0, pCb, sizeof(*pCb), 1));
 
             CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
         }
@@ -847,7 +868,7 @@ namespace sl
             acquireTaggedResource(ctx.viewportId);
             if (taggedResourceUpdate)
             {
-                cloneTaggedResource(ctx.currHudLessColor, ctx.currDepth, ctx.prevHudLessColor, ctx.prevDepth);
+                cloneTaggedResource(ctx.currHudLessColor, ctx.currDepth, ctx.currMvec, ctx.prevHudLessColor, ctx.prevDepth, ctx.prevMvec);
             }
 
             if (firstFrame || foundConstData == false || taggedResourceUpdate == true || IsContextStatusOk() == false)
@@ -959,11 +980,9 @@ namespace sl
                 }
             }
 
-            auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
-            assert(status == sl::chi::ComputeStatus::eOk);
-
-            status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
-            assert(status == sl::chi::ComputeStatus::eOk);
+            CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth));
+            CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor));
+            CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevMvec, ctx.currMvec));
 
             MTSSFG_END_PERF(onlyCheckPresentTotalPerf, "sl.mtss-fg.present");
         }

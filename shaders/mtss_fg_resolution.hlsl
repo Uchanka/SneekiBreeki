@@ -6,7 +6,9 @@ Texture2D<float> depthTextureTip;
 Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTop;
 
-Texture2D<float2> motionUnprojected;
+Texture2D<float2> prevMotionUnprojected;
+Texture2D<float2> currMotionUnprojected;
+
 Texture2D<float4> motionReprojected;
 
 RWTexture2D<float4> outputTexture;
@@ -54,7 +56,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     
     velocityTipCombined *= viewportInv;
     velocityTopCombined *= viewportInv;
-    
+  
     const float distanceTip = tipTopDistance.x;
     const float distanceTop = tipTopDistance.y;
 	

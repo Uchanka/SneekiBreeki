@@ -2,7 +2,9 @@
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-Texture2D<float2> motionVector;
+Texture2D<float2> prevMotionVector;
+Texture2D<float2> currMotionVector;
+
 Texture2D<float> depthTextureTip;
 Texture2D<float> depthTextureTop;
 
@@ -43,16 +45,16 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 #endif
     
 #ifdef UNREAL_ENGINE_COORDINATES
-    float2 motionVectorDecoded = motionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
-    //float2 motionStaticTip = ComputeStaticVelocityTipTop(screenPos, depthTextureTip.SampleLevel(bilinearMirroredSampler, viewportUV, 0), prevClipToClip);
-    //float2 motionStaticTop = ComputeStaticVelocityTopTip(screenPos, depthTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0), clipToPrevClip);
+    float2 motionVectorDecodedTop = currMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
+    float2 motionVectorDecodedTip = prevMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
     //Bruh... Streamline doesn't differentiate static and non-static velocities
-    float2 motionVectorDecoded = motionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
+    float2 motionVectorDecodedTop = currMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
+    float2 motionVectorDecodedTip = prevMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
 #endif
-    float2 velocityTipCombined = motionVectorDecoded;
-    float2 velocityTopCombined = motionVectorDecoded;
+    float2 velocityTipCombined = motionVectorDecodedTip;
+    float2 velocityTopCombined = motionVectorDecodedTop;
 
     //What if we need to interpolate multiple frames?
     const float distanceTip = tipTopDistance.x;
