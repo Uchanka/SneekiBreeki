@@ -450,6 +450,6 @@ project "sl.imgui"
 
 	libdirs {externaldir .."vulkan/Lib"}
 
-	links { "d3d12.lib", "vulkan-1.lib"}
+	links { "d3d11.lib", "d3d12.lib", "vulkan-1.lib"}
 	
 group ""

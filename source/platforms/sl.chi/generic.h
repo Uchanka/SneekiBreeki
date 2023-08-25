@@ -176,6 +176,15 @@ protected:
     VRAMSegment manageVRAM(Resource res, VRAMOperation op);
 
 public:
+    // Function Below Is MooreThreads Added Begin
+
+    virtual ComputeStatus getTextureSrv(Resource resource, void** ppSrv, uint32_t mipOffset = 0, uint32_t mipLevels = 0, Sampler sampler = Sampler::eSamplerPointClamp)
+    {
+        *ppSrv = nullptr;
+        return ComputeStatus::eError;
+    }
+
+    // Function Below Is MooreThreads Added End
 
     virtual ComputeStatus init(Device InDevice, param::IParameters* params);
     virtual ComputeStatus shutdown();

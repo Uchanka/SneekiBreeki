@@ -114,6 +114,18 @@ class D3D11 : public Generic
     DXGI_FORMAT getCorrectFormat(DXGI_FORMAT Format);
 
 public:
+    // Function Below Is MooreThreads Added Begin
+
+    virtual ComputeStatus getTextureSrv(Resource resource, void** ppSrv, uint32_t mipOffset = 0, uint32_t mipLevels = 0, Sampler sampler = Sampler::eSamplerPointClamp)
+    {
+        ResourceDriverDataD3D11 d3d11Data{};
+        getTextureDriverData(resource, d3d11Data, mipOffset, mipLevels, sampler);
+        *ppSrv = d3d11Data.SRV;
+
+        return ComputeStatus::eOk;
+    }
+
+    // Function Below Is MooreThreads Added End
 
     virtual ComputeStatus init(Device InDevice, param::IParameters* params) override final;
     virtual ComputeStatus shutdown() override final;

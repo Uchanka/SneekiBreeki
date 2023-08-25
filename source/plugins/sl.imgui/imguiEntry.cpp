@@ -21,6 +21,7 @@
 */
 
 #include <dxgi1_6.h>
+#include <d3d11.h>
 #include <d3d12.h>
 #include <future>
 
@@ -42,6 +43,7 @@
 #include "source/plugins/sl.imgui/imguiTypes.h"
 #include "source/plugins/sl.imgui/input.h"
 #include "source/plugins/sl.imgui/imgui.h"
+#include "source/plugins/sl.imgui/imgui_impl_dx11.h"
 #include "source/plugins/sl.imgui/imgui_impl_dx12.h"
 #include "source/plugins/sl.imgui/imgui_impl_vulkan.h"
 #include "source/plugins/sl.imgui/imgui_impl_win32.h"
@@ -73,6 +75,7 @@ struct IMGUIContext
 
     // Compute API
     RenderAPI platform = RenderAPI::eD3D12;
+    bool d3d11On12 = false;
     chi::ICompute* compute{};
 
     uint32_t currentFrame = 0;
@@ -86,6 +89,7 @@ struct IMGUIContext
     void* backBuffers[NUM_BACK_BUFFERS] = {};
 
     ID3D12Device* device{};
+    ID3D11Device* device11{};
     ID3D12DescriptorHeap* pd3dRtvDescHeap{};
     ID3D12DescriptorHeap* pd3dSrvDescHeap{};
     D3D12_CPU_DESCRIPTOR_HANDLE  mainRenderTargetDescriptor[NUM_BACK_BUFFERS]{};
@@ -117,7 +121,7 @@ static const char* JSON = R"json(
     "required_plugins" : ["sl.common"],
     "name" : "sl.imgui",
     "namespace" : "imgui",
-    "rhi" : ["d3d12"],
+    "rhi" : ["d3d11, d3d12"],
     "hooks" :
     [
     ]
@@ -258,7 +262,7 @@ Context* createContext(const ContextDesc& desc)
 
     void* apiData{};
 
-    if (ctx.platform == RenderAPI::eD3D12 || ctx.platform == RenderAPI::eD3D11)
+    if (ctx.platform == RenderAPI::eD3D12 || (ctx.platform == RenderAPI::eD3D11 && ctx.d3d11On12))
     {
         // In both cases we use D3D12
         chi::Device device{};
@@ -297,6 +301,15 @@ Context* createContext(const ContextDesc& desc)
             (DXGI_FORMAT)desc.backBufferFormat, ctx.pd3dSrvDescHeap,
             ctx.pd3dSrvDescHeap->GetCPUDescriptorHandleForHeapStart(),
             ctx.pd3dSrvDescHeap->GetGPUDescriptorHandleForHeapStart());
+    }
+    else if (ctx.platform == RenderAPI::eD3D11 && ctx.d3d11On12 == false)
+    {
+        chi::Device device{};
+        ctx.compute->getDevice(device);
+        ctx.device11 = (ID3D11Device*)device;
+        ID3D11DeviceContext* pCtx;
+        ctx.device11->GetImmediateContext(&pCtx);
+        ImGui_ImplDX11_Init(ctx.device11, pCtx);
     }
     else
     {
@@ -373,15 +386,19 @@ void destroyContext(Context* imguiCtx)
         g_ctx = {};
     }
     delete imguiCtx;
-    
+
     auto& ctx = (*sl::imgui::getContext());
     ctx.backBuffers[0] = {};
     ctx.backBuffers[1] = {};
     ctx.backBuffers[2] = {};
-    if (ctx.platform == RenderAPI::eD3D12 || ctx.platform == RenderAPI::eD3D11)
+    if (ctx.platform == RenderAPI::eD3D12 || (ctx.platform == RenderAPI::eD3D11) && ctx.d3d11On12)
     {
         // In both cases we use D3D12
         ImGui_ImplDX12_InvalidateDeviceObjects();
+    }
+    else if ((ctx.platform == RenderAPI::eD3D11) && ctx.d3d11On12 == false)
+    {
+        ImGui_ImplDX11_InvalidateDeviceObjects();
     }
     else
     {
@@ -410,9 +427,13 @@ void newFrame(float elapsedTime)
     io.DeltaTime = elapsedTime;
 
     auto& ctx = (*sl::imgui::getContext());
-    if (ctx.platform == RenderAPI::eD3D12 || ctx.platform == RenderAPI::eD3D11)
+    if (ctx.platform == RenderAPI::eD3D12 || (ctx.platform == RenderAPI::eD3D11) && ctx.d3d11On12)
     {
         ImGui_ImplDX12_NewFrame();
+    }
+    else if (ctx.platform == RenderAPI::eD3D11 && ctx.d3d11On12 == false)
+    {
+        ImGui_ImplDX11_NewFrame();
     }
     else
     {
@@ -421,7 +442,7 @@ void newFrame(float elapsedTime)
 
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
-    
+
     ctx.currentFrame++;
 }
 
@@ -429,7 +450,7 @@ void render(void* commandList, void* backBuffer, uint32_t index)
 {
     auto& ctx = (*imgui::getContext());
 
-    if (ctx.platform == RenderAPI::eD3D12 || ctx.platform == RenderAPI::eD3D11)
+    if (ctx.platform == RenderAPI::eD3D12 || (ctx.platform == RenderAPI::eD3D11) && ctx.d3d11On12)
     {
         auto cmdList = (ID3D12GraphicsCommandList*)commandList;
         ID3D12Resource* resource = (ID3D12Resource*)backBuffer;
@@ -461,6 +482,11 @@ void render(void* commandList, void* backBuffer, uint32_t index)
         barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
         cmdList->ResourceBarrier(1, &barrier);
+    }
+    else if (ctx.platform == RenderAPI::eD3D11 && ctx.d3d11On12 == false)
+    {
+        ImGui::Render();
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
     }
     else
     {
@@ -3197,10 +3223,16 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     ctx.platform = (RenderAPI)deviceType;
     if (ctx.platform == RenderAPI::eD3D11)
     {
-        if (!param::getPointerParam(parameters, sl::param::common::kComputeDX11On12API, &ctx.compute))
+        if (param::getPointerParam(parameters, sl::param::common::kComputeDX11On12API, &ctx.compute))
         {
-            // Log error
-            return false;
+            ctx.d3d11On12 = true;
+        }
+        if (ctx.d3d11On12 == false)
+        {
+            if (!param::getPointerParam(parameters, sl::param::common::kComputeAPI, &ctx.compute))
+            {
+                return false;
+            }
         }
     }
     else
@@ -3646,11 +3678,15 @@ void slOnPluginShutdown()
         }
         ImGui_ImplVulkan_Shutdown();
     }
-    else
+    else if (ctx.platform == RenderAPI::eD3D12 || (ctx.platform == RenderAPI::eD3D11) && ctx.d3d11On12)
     {
         ImGui_ImplDX12_Shutdown();
         SL_SAFE_RELEASE(ctx.pd3dRtvDescHeap);
         SL_SAFE_RELEASE(ctx.pd3dSrvDescHeap);
+    }
+    else
+    {
+        ImGui_ImplDX11_Shutdown();
     }
 
     // Common shutdown
