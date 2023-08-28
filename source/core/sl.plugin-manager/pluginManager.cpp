@@ -809,12 +809,13 @@ Result PluginManager::loadPlugins()
     s_status = PluginManagerStatus::ePluginsLoaded;
 
     // Kickoff OTA update, this function internally will check OTA preferences
-    m_ota->readServerManifest();
-    bool requestOptionalUpdates = (m_pref.flags & PreferenceFlags::eAllowOTA);
-    for (Feature f : m_featuresToLoad)
-    {
-        m_ota->checkForOTA(f, m_api, requestOptionalUpdates);
-    }
+    // !! MT Version Streamline Current Not Support OTA
+    //m_ota->readServerManifest();
+    //bool requestOptionalUpdates = (m_pref.flags & PreferenceFlags::eAllowOTA);
+    //for (Feature f : m_featuresToLoad)
+    //{
+    //    m_ota->checkForOTA(f, m_api, requestOptionalUpdates);
+    //}
 
     //! Now let's enumerate SL plugins!
     //!
@@ -840,24 +841,25 @@ Result PluginManager::loadPlugins()
     if (m_pref.flags & PreferenceFlags::eLoadDownloadedPlugins)
     {
         SL_LOG_INFO("Searching for OTA'd plugins...");
-        for (Feature f : m_featuresToLoad)
-        {
-            std::wstring pluginPath;
-            if (m_ota->getOTAPluginForFeature(f, m_api, pluginPath))
-            {
-                SL_LOG_INFO("Found plugin: %ls", pluginPath.c_str());
-                if (f == kFeatureCommon)
-                {
-                    // Push kFeatureCommon OTA to front of list so sl.common is
-                    // loaded first+foremost
-                    pluginList.insert(pluginList.begin(), pluginPath);
-                }
-                else
-                {
-                    pluginList.push_back(pluginPath);
-                }
-            }
-        }
+        SL_LOG_WARN("Current Not Support OTA");
+        //for (Feature f : m_featuresToLoad)
+        //{
+        //    std::wstring pluginPath;
+        //    if (m_ota->getOTAPluginForFeature(f, m_api, pluginPath))
+        //    {
+        //        SL_LOG_INFO("Found plugin: %ls", pluginPath.c_str());
+        //        if (f == kFeatureCommon)
+        //        {
+        //            // Push kFeatureCommon OTA to front of list so sl.common is
+        //            // loaded first+foremost
+        //            pluginList.insert(pluginList.begin(), pluginPath);
+        //        }
+        //        else
+        //        {
+        //            pluginList.push_back(pluginPath);
+        //        }
+        //    }
+        //}
     }
     else
     {
