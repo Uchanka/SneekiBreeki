@@ -100,25 +100,28 @@ void ImGuiDebugOverlay::Init(
     uint32_t height,
     uint32_t nativeFormat)
 {
-    if (m_inited)
+    if (m_pImGui)
     {
-        DeInit();
+        if (m_inited)
+        {
+            DeInit();
+        }
+
+        sl::imgui::ContextDesc desc;
+        desc.width            = width;
+        desc.height           = height;
+        desc.hWnd             = (HWND)m_window;
+        desc.backBufferFormat = nativeFormat;
+
+        m_pImGuiCtx = m_pImGui->createContext(desc);
+        m_pImGui->setCurrentContext(m_pImGuiCtx);
+        m_pImGui->setDisplaySize(sl::type::Float2(width, height));
+
+        bool success = CreateInternalPixelShader();
+        assert(success == true);
+
+        m_inited = true;
     }
-
-    sl::imgui::ContextDesc desc;
-    desc.width            = width;
-    desc.height           = height;
-    desc.hWnd             = (HWND)m_window;
-    desc.backBufferFormat = nativeFormat;
-
-    m_pImGuiCtx = m_pImGui->createContext(desc);
-    m_pImGui->setCurrentContext(m_pImGuiCtx);
-    m_pImGui->setDisplaySize(sl::type::Float2(width, height));
-
-    bool success = CreateInternalPixelShader();
-    assert(success == true);
-
-    m_inited = true;
 }
 
 void ImGuiDebugOverlay::DeInit()
@@ -135,9 +138,9 @@ void ImGuiDebugOverlay::DrawMtssFG(const MtssFgDebugOverlayInfo& info)
 {
     if (m_pImGui)
     {
-        bool open = false;
+        bool open = true;
         m_pImGui->newFrame(0.f);
-        m_pImGui->begin("DebugOverlay Mtss FG", &open, sl::imgui::kWindowFlagNone);
+        m_pImGui->begin("MTSS-FG Debug Overlay", &open, sl::imgui::kWindowFlagNone);
 
         if (IsD3d11())
         {
@@ -147,44 +150,54 @@ void ImGuiDebugOverlay::DrawMtssFG(const MtssFgDebugOverlayInfo& info)
             m_pD3d11DeviceContext->OMSetRenderTargets(1, &pRtv, nullptr);
         }
 
-        m_pImGui->beginChild("##imageHost",
-                             m_pImGui->getContentRegionAvail(),
-                             true,
-                             sl::imgui::kWindowFlagAlwaysHorizontalScrollbar);
+        uint32_t id = m_pImGui->getIdString("MtssFgDockSpace");
+        m_pImGui->dockSpace(id, sl::type::Float2(0.0f, 0.0f), 0, nullptr);
 
-        if (info.flag.showPrevHudLessColor)
         {
-            m_pImGui->addWindowDrawCallback(ColorDrawCallBack, this);
+            m_pImGui->setNextWindowDockId(id, sl::imgui::Condition::eFirstUseEver);
 
-            void* pSrv = nullptr;
-            m_pCompute->getTextureSrv(info.pPrevHudLessColor, &pSrv);
-            m_pImGui->image(static_cast<sl::imgui::TextureId>(pSrv),
-                            {float(info.pPrevHudLessColor->width / 2.0), float(info.pPrevHudLessColor->height / 2.0)},
-                            {0.0f, 0.0f},
-                            {1.0f, 1.0f},
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 0.0f});
-        }
-        if (info.flag.showCurrHudLessColor)
-        {
+            const char* pText[2] = {"Prev HudLess Color", "Curr HudLess Color"};
+            sl::Resource* pResources[2] = {info.pPrevHudLessColor, info.pCurrHudLessColor};
 
-        }
-        if (info.flag.showPrevDepth)
-        {
-            m_pImGui->addWindowDrawCallback(DepthDrawCallBack, this);
-            void* pSrv = nullptr;
-            m_pCompute->getTextureSrv(info.pCurrDepth, &pSrv);
-
-            m_pImGui->image(static_cast<sl::imgui::TextureId>(pSrv),
-                            {float(info.pPrevDepth->width / 2.0), float(info.pPrevDepth->height / 2.0)},
-                            {0.0f, 0.0f},
-                            {1.0f, 1.0f},
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 0.0f});
+            DrawTextureWithNewFrame("HudLess Color",
+                                    pText,
+                                    pResources,
+                                    2,
+                                    info.pPrevHudLessColor->width,
+                                    info.pPrevHudLessColor->height,
+                                    ColorDrawCallBack);
         }
 
-        m_pImGui->addWindowDrawCallback(sl::imgui::DrawCallback(-1), this);
-        m_pImGui->endChild();
+        {
+            m_pImGui->setNextWindowDockId(id, sl::imgui::Condition::eFirstUseEver);
+
+            const char*   pText[2]      = {"Prev Depth", "Curr Depth"};
+            sl::Resource* pResources[2] = {info.pPrevDepth, info.pCurrDepth};
+
+            DrawTextureWithNewFrame("Depth",
+                                    pText,
+                                    pResources,
+                                    2,
+                                    info.pPrevDepth->width,
+                                    info.pPrevDepth->height,
+                                    DepthDrawCallBack);
+        }
+
+        {
+            m_pImGui->setNextWindowDockId(id, sl::imgui::Condition::eFirstUseEver);
+
+            const char*   pText[2]      = {"Prev Motion Vector", "Curr Motion Vector"};
+            sl::Resource* pResources[2] = {info.pPrevMotionVector, info.pCurrMotionVector};
+
+            DrawTextureWithNewFrame("Motion Vector",
+                                    pText,
+                                    pResources,
+                                    2,
+                                    info.pPrevMotionVector->width,
+                                    info.pPrevMotionVector->height,
+                                    MevcDrawCallBack);
+        }
+
         m_pImGui->end();
 
         if (IsD3d11())
@@ -294,7 +307,7 @@ bool ImGuiDebugOverlay::CreateInternalPixelShader()
             \
             float4 main(PS_INPUT input) : SV_Target\
             {\
-            float4 out_col = input.col * (texture0.Sample(sampler0, input.uv)); \
+            float4 out_col = input.col * (abs((texture0.Sample(sampler0, input.uv)))); \
             out_col.w = 0.0f; \
             return out_col; \
             }";
@@ -326,6 +339,42 @@ bool ImGuiDebugOverlay::CreateInternalPixelShader()
     }
 
     return true;
+}
+
+void ImGuiDebugOverlay::DrawTextureWithNewFrame(const char*             pFrameName,
+                                                const char**            ppText,
+                                                sl::Resource**          ppResources,
+                                                uint8_t                 resourceCount,
+                                                uint32_t                resourceWidth,
+                                                uint32_t                resourceHeight,
+                                                sl::imgui::DrawCallback callback)
+{
+    bool open = true;
+    m_pImGui->begin(pFrameName, &open, sl::imgui::kWindowFlagNone);
+
+    for (uint8_t i = 0; i < resourceCount; i++)
+    {
+        if (ppResources[i])
+        {
+            m_pImGui->beginGroup();
+            void* pSrv = nullptr;
+            m_pCompute->getTextureSrv(ppResources[i], &pSrv);
+            m_pImGui->textUnformatted(ppText[i]);
+            m_pImGui->addWindowDrawCallback(callback, this);
+            m_pImGui->image(static_cast<sl::imgui::TextureId>(pSrv),
+                            {float(resourceWidth / 2.0), float(resourceHeight / 2.0)},
+                            {0.0f, 0.0f},
+                            {1.0f, 1.0f},
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 0.0f});
+            m_pImGui->addWindowDrawCallback(sl::imgui::DrawCallback(-1), this);
+            m_pImGui->endGroup();
+
+            m_pImGui->sameLine();
+        }
+    }
+
+    m_pImGui->end();
 }
 
 }

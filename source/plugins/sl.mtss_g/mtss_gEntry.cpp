@@ -169,7 +169,9 @@ struct MTSSGContext
     MTSSGOptions options;
     MTSSGState   state;
 
+#if MTSSFG_IMGUI
     sl::ImGuiDebugOverlay* pDebugOverlay;
+#endif
 };
 
 } // namespace mtssg
@@ -503,9 +505,11 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
                     ctx.state.estimatedVRAMUsageInBytes,
                     ctx.state.estimatedVRAMUsageInBytes / 1024 / 1024);
 
+#if MTSSFG_IMGUI
         ctx.pDebugOverlay->DeInit();
 
         ctx.pDebugOverlay->Init(ctx.swapChainWidth, ctx.swapChainHeight, ctx.swapChainFormat);
+#endif
     }
 }
 
@@ -979,16 +983,19 @@ void presentCommon(IDXGISwapChain*                swapChain,
         assert(status == sl::chi::ComputeStatus::eOk);
 
 #if MTSSFG_IMGUI
-        sl::MtssFgDebugOverlayInfo info{};
-        info.pRenderTarget             = ctx.generatedFrame;
-        info.pPrevDepth                = ctx.prevDepth;
-        info.pCurrDepth                = ctx.currDepth;
-        info.pPrevHudLessColor         = ctx.prevHudLessColor;
-        info.pCurrHudLessColor         = ctx.currHudLessColor;
-        info.pMotionVectorLv0          = ctx.motionReprojected;
-        info.flag.showPrevHudLessColor = 1;
-        info.flag.showPrevDepth        = 1;
-        ctx.pDebugOverlay->DrawMtssFG(info);
+        bool showDebugOverLay = (ctx.options.flags & MTSSGFlags::eShowDebugOverlay) != 0;
+        if (showDebugOverLay)
+        {
+            sl::MtssFgDebugOverlayInfo info{};
+            info.pRenderTarget     = ctx.generatedFrame;
+            info.pPrevDepth        = ctx.prevDepth;
+            info.pCurrDepth        = ctx.currDepth;
+            info.pPrevHudLessColor = ctx.prevHudLessColor;
+            info.pCurrHudLessColor = ctx.currHudLessColor;
+            info.pPrevMotionVector = ctx.prevMvec;
+            info.pCurrMotionVector = ctx.currMvec;
+            ctx.pDebugOverlay->DrawMtssFG(info);
+        }
 #endif
 
         // Copy generate frame to surface present
@@ -1076,7 +1083,9 @@ void slOnPluginShutdown()
     ctx.pCompute->destroyCommandListContext(ctx.pCmdList);
     ctx.pCompute->destroyCommandQueue(ctx.cmdCopyQueue);
 
+#if MTSSFG_IMGUI
     delete ctx.pDebugOverlay;
+#endif
 
     plugin::onShutdown(api::getContext());
 }
@@ -1156,9 +1165,11 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     getTaggedResource(kBufferTypeDepth, temp, 0);
     getTaggedResource(kBufferTypeMotionVectors, temp, 0);
 
+#if MTSSFG_IMGUI
     sl::imgui::ImGUI *pImGui;
     param::getPointerParam(parameters, param::imgui::kInterface, &pImGui);
     ctx.pDebugOverlay = new sl::ImGuiDebugOverlay(pImGui, ctx.pCompute, device, ctx.platform);
+#endif
 
     return true;
 }
@@ -1193,8 +1204,10 @@ HRESULT slHookCreateSwapChain(IDXGIFactory*         pFactory,
 
     HRESULT result = S_OK;
 
+#if MTSSFG_IMGUI
     auto& ctx        = (*mtssg::getContext());
     ctx.pDebugOverlay->SetWindow(pDesc->OutputWindow);
+#endif
 
     mtssg::createGeneratedFrame(pDesc->BufferDesc.Width, pDesc->BufferDesc.Height, pDesc->BufferDesc.Format);
 
@@ -1214,8 +1227,10 @@ HRESULT slHookCreateSwapChainForHwnd(IDXGIFactory2*                         pFac
 
     HRESULT result = S_OK;
 
+#if MTSSFG_IMGUI
     auto& ctx        = (*mtssg::getContext());
     ctx.pDebugOverlay->SetWindow(hWnd);
+#endif
 
     mtssg::createGeneratedFrame(pDesc->Width, pDesc->Height, pDesc->Format);
 

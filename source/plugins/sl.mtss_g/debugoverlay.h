@@ -13,6 +13,8 @@ namespace imgui
 {
 struct ImGUI;
 struct Context;
+struct DrawData;
+struct DrawCommand;
 }
 
 namespace chi
@@ -20,30 +22,14 @@ namespace chi
 class ICompute;
 }
 
-union MtssFgDrawFlag
-{
-    uint32_t u32All;
-
-    struct
-    {
-        uint32_t showPrevDepth        : 1;
-        uint32_t showCurrDepth        : 1;
-        uint32_t showPrevHudLessColor : 1;
-        uint32_t showCurrHudLessColor : 1;
-        uint32_t showPrevMotionVector : 1;
-        uint32_t showCurrMotionVector : 1;
-        uint32_t reserved             : 26;
-    };
-};
-
 struct MtssFgDebugOverlayInfo
 {
-    MtssFgDrawFlag flag;
     sl::Resource*  pPrevDepth;
     sl::Resource*  pCurrDepth;
     sl::Resource*  pPrevHudLessColor;
     sl::Resource*  pCurrHudLessColor;
-    sl::Resource*  pMotionVectorLv0;
+    sl::Resource*  pPrevMotionVector;
+    sl::Resource*  pCurrMotionVector;
 
     sl::Resource* pRenderTarget;
 };
@@ -51,6 +37,9 @@ struct MtssFgDebugOverlayInfo
 class ImGuiDebugOverlay
 {
 public:
+
+    typedef void (*DrawCallback)(const sl::imgui::DrawData* drawData, const sl::imgui::DrawCommand* cmd);
+
     ImGuiDebugOverlay(sl::imgui::ImGUI* pUi, sl::chi::ICompute* pCompute, void* pDevice, sl::RenderAPI renderApi);
 
     void SetWindow(void* window);
@@ -106,6 +95,13 @@ public:
 
 private:
     bool CreateInternalPixelShader();
+    void DrawTextureWithNewFrame(const char*    pFrameName,
+                                 const char**   ppText,
+                                 sl::Resource** ppResources,
+                                 uint8_t        resourceCount,
+                                 uint32_t       resourceWidth,
+                                 uint32_t       resourceHeight,
+                                 DrawCallback   callback);
 
 private:
     sl::imgui::ImGUI*        m_pImGui;

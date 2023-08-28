@@ -20,6 +20,7 @@ enum class MTSSGMode : uint32_t
 enum class MTSSGFlags : uint32_t
 {
     eShowOnlyInterpolatedFrame = 1 << 0,
+    eShowDebugOverlay          = 1 << 1,
 };
 
 // Adds various useful operators for our enum
