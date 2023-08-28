@@ -52,7 +52,7 @@ static uint WrittenMTSSIndicator = WrittenLast1DigitMT1;
 static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
-static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
+static float ImpossibleMotionVecValue = 8192.0f; //Have to use this 2's power to prevent floating point gimmicks
 #endif
 
 //static int depthTotalBits = 19;

@@ -7,7 +7,9 @@ RWTexture2D<uint> motionReprojTipY;
 RWTexture2D<uint> motionReprojTopX;
 RWTexture2D<uint> motionReprojTopY;
 
-Texture2D<float2> motionUnprojected;
+Texture2D<float2> prevMotionUnprojected;
+Texture2D<float2> currMotionUnprojected;
+
 RWTexture2D<float4> motionReprojected;
 
 cbuffer shaderConsts : register(b0)
@@ -53,13 +55,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTip = clamp(motionCaliberatedUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
-    float2 motionVectorTip = motionUnprojected[tipIndex] * viewportInv;
+    float2 motionVectorTip = prevMotionUnprojected[tipIndex] * viewportInv;
     float2 samplePosTip = screenPos + motionVectorTip * distanceTip;
     float2 motionCaliberatedUVTip = samplePosTip;
     motionCaliberatedUVTip = clamp(motionCaliberatedUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-	float2 motionTipCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTip, 0) * viewportInv;
+	float2 motionTipCaliberated = prevMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTip, 0);
+    //motionTipCaliberated = motionTipCaliberated * viewportInv;
     if (bIsTipUnwritten)
     {
         motionTipCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
@@ -76,13 +79,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 #ifdef NVRHI_DONUT_COORDINATES
-    float2 motionVectorTop = motionUnprojected[topIndex] * viewportInv;
+    float2 motionVectorTop = currMotionUnprojected[topIndex] * viewportInv;
     float2 samplePosTop = screenPos - motionVectorTop * distanceTop;
     float2 motionCaliberatedUVTop = samplePosTop;
     motionCaliberatedUVTop = clamp(motionCaliberatedUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 #endif
 
-    float2 motionTopCaliberated = motionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0) * viewportInv;
+    float2 motionTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVTop, 0);
+    //motionTopCaliberated *= viewportInv;
     if (bIsTopUnwritten)
     {
         motionTopCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);

@@ -115,9 +115,10 @@ struct MTSSGContext
 
     Constants* commonConsts{};
     // Our tagged inputs
-    CommonResource    mvec{};
+    CommonResource    currMvec{};
     CommonResource    currDepth{};
     CommonResource    currHudLessColor{};
+    sl::chi::Resource prevMvec{};
     sl::chi::Resource prevDepth{};
     sl::chi::Resource prevHudLessColor{};
 
@@ -528,7 +529,7 @@ bool checkTagedResourceUpdate(uint32_t viewportId)
 
     sl::CommonResource mvecRes{};
     getTaggedResource(kBufferTypeMotionVectors, mvecRes, viewportId);
-    if (static_cast<void*>(mvecRes) != static_cast<void*>(ctx.mvec))
+    if (static_cast<void*>(mvecRes) != static_cast<void*>(ctx.currMvec))
     {
         return true;
     }
@@ -549,7 +550,7 @@ sl::Result acquireTaggedResource(uint32_t viewportId)
 
     if (ret == sl::Result::eOk)
     {
-        ret = getTaggedResource(kBufferTypeMotionVectors, ctx.mvec, viewportId);
+        ret = getTaggedResource(kBufferTypeMotionVectors, ctx.currMvec, viewportId);
     }
 
     if (ret != sl::Result::eOk)
@@ -563,13 +564,16 @@ sl::Result acquireTaggedResource(uint32_t viewportId)
 
 sl::Result cloneTaggedResource(const sl::CommonResource& currHudLessColor,
                                const sl::CommonResource& currDepth,
+                               const sl::CommonResource& currMvec,
                                sl::chi::Resource&        clonedHudLessColor,
-                               sl::chi::Resource&        clonedDepth)
+                               sl::chi::Resource&        clonedDepth,
+                               sl::chi::Resource&        clonedMvec)
 {
     auto& ctx = (*mtssg::getContext());
 
-    cloneResource(currHudLessColor, clonedHudLessColor, "prev hudless color");
-    cloneResource(currDepth, clonedDepth, "prev depth");
+    CHI_VALIDATE(cloneResource(currHudLessColor, clonedHudLessColor, "prev hudless color"));
+    CHI_VALIDATE(cloneResource(currDepth, clonedDepth, "prev depth"));
+    CHI_VALIDATE(cloneResource(currMvec, clonedMvec, "prev mvec"));
 
     return sl::Result::eOk;
 }
@@ -786,25 +790,26 @@ void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct* pCb, uint32_
 
     CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.mvec));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevDepth));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.currDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevMvec));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.currMvec));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
 
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, ctx.motionReprojectedTipX));
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 1, ctx.motionReprojectedTipY));
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 2, ctx.motionReprojectedTopX));
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 3, ctx.motionReprojectedTopY));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, ctx.motionReprojectedTipX));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 1, ctx.motionReprojectedTipY));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 2, ctx.motionReprojectedTopX));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(7, 3, ctx.motionReprojectedTopY));
 
-    CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
+    CHI_VALIDATE(ctx.pCompute->bindConsts(8, 0, pCb, sizeof(*pCb), 1));
 
-    CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
+    CHI_VALIDATE(ctx.pCompute->bindSampler(9, 0, chi::eSamplerLinearMirror));
 
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 0, {}));
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 1, {}));
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 2, {}));
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 3, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 0, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 1, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 2, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(7, 3, {}));
 }
 
 void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t grid[])
@@ -817,18 +822,18 @@ void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t gr
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.motionReprojectedTipY));
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedTopX));
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, ctx.motionReprojectedTopY));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, ctx.motionReprojected));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 0, ctx.mvec));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 0, ctx.prevMvec));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(6, 1, ctx.currMvec));
 
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 4, ctx.motionReprojected));
+    CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
 
-    CHI_VALIDATE(ctx.pCompute->bindConsts(6, 0, pCb, sizeof(*pCb), 1));
-
-    CHI_VALIDATE(ctx.pCompute->bindSampler(7, 0, chi::eSamplerLinearMirror));
+    CHI_VALIDATE(ctx.pCompute->bindSampler(8, 0, chi::eSamplerLinearMirror));
 
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 4, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, {}));
 }
 
 void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb, uint32_t grid[])
@@ -839,16 +844,18 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
 
     CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevHudLessColor));
     CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevDepth));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.currHudLessColor));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevMvec));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.mvec));
-    // CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionVectorLv0));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojected));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currHudLessColor));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currDepth));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.currMvec));
 
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(6, 0, ctx.generatedFrame));
+    // CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionVectorLv0));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojected));
 
-    CHI_VALIDATE(ctx.pCompute->bindConsts(7, 0, pCb, sizeof(*pCb), 1));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(7, 0, ctx.generatedFrame));
+
+    CHI_VALIDATE(ctx.pCompute->bindConsts(8, 0, pCb, sizeof(*pCb), 1));
 
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
@@ -888,7 +895,12 @@ void presentCommon(IDXGISwapChain*                swapChain,
     acquireTaggedResource(ctx.viewportId);
     if (taggedResourceUpdate || ctx.prevDepth == nullptr || ctx.prevHudLessColor == nullptr)
     {
-        cloneTaggedResource(ctx.currHudLessColor, ctx.currDepth, ctx.prevHudLessColor, ctx.prevDepth);
+        cloneTaggedResource(ctx.currHudLessColor,
+                            ctx.currDepth,
+                            ctx.currMvec,
+                            ctx.prevHudLessColor,
+                            ctx.prevDepth,
+                            ctx.prevMvec);
     }
 
     if (firstFrame || foundConstData == false || taggedResourceUpdate == true || IsContextStatusOk() == false)
@@ -1014,11 +1026,9 @@ void presentCommon(IDXGISwapChain*                swapChain,
         }
     }
 
-    auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth);
-    assert(status == sl::chi::ComputeStatus::eOk);
-
-    status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor);
-    assert(status == sl::chi::ComputeStatus::eOk);
+    CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevDepth, ctx.currDepth));
+    CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevHudLessColor, ctx.currHudLessColor));
+    CHI_VALIDATE(ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.prevMvec, ctx.currMvec));
 
     MTSSFG_END_PERF(onlyCheckPresentTotalPerf, "sl.mtss-fg.present");
 }

@@ -3,10 +3,12 @@
 
 Texture2D<float3> colorTextureTip;
 Texture2D<float> depthTextureTip;
+Texture2D<float2> prevMotionUnprojected;
+
 Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTop;
+Texture2D<float2> currMotionUnprojected;
 
-Texture2D<float2> motionUnprojected;
 Texture2D<float4> motionReprojected;
 
 RWTexture2D<float4> outputTexture;
@@ -52,6 +54,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     int isTipVisible = any(velocityTipCombined == ImpossibleMotionVecValue) ? 0 : 1;
     int isTopVisible = any(velocityTopCombined == ImpossibleMotionVecValue) ? 0 : 1;
     
+    velocityTipCombined *= viewportInv;
+    velocityTopCombined *= viewportInv;
+  
     const float distanceTip = tipTopDistance.x;
     const float distanceTop = tipTopDistance.y;
 	
@@ -129,7 +134,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         {
             outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
             //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex], motionUnprojected[currentPixelIndex]);
-            //outputTexture[currentPixelIndex] = motionVector;
+            //outputTexture[currentPixelIndex] = float4(velocityTopCombined, velocityTipCombined) * 10.0f;
         }
     }
 }
