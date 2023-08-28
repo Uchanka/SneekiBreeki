@@ -2568,22 +2568,22 @@ ComputeStatus D3D12::getResourceDescription(Resource resource, ResourceDescripti
     return ComputeStatus::eOk;
 }
 
-ComputeStatus D3D12::notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type)
-{
-    NVAPI_CHECK(NvAPI_D3D12_NotifyOutOfBandCommandQueue((ID3D12CommandQueue*)queue, (NV_OUT_OF_BAND_CQ_TYPE) type));
-    return ComputeStatus::eOk;
-}
-
-ComputeStatus D3D12::setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId)
-{
-    NV_LATENCY_MARKER_PARAMS_V1 params = { 0 };
-    params.version = NV_LATENCY_MARKER_PARAMS_VER1;
-    params.frameID = frameId;
-    params.markerType = (NV_LATENCY_MARKER_TYPE)marker;
-
-    NVAPI_CHECK(NvAPI_D3D12_SetAsyncFrameMarker((ID3D12CommandQueue*)queue, &params));
-    return ComputeStatus::eOk;
-}
+//ComputeStatus D3D12::notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type)
+//{
+//    NVAPI_CHECK(NvAPI_D3D12_NotifyOutOfBandCommandQueue((ID3D12CommandQueue*)queue, (NV_OUT_OF_BAND_CQ_TYPE) type));
+//    return ComputeStatus::eOk;
+//}
+//
+//ComputeStatus D3D12::setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId)
+//{
+//    NV_LATENCY_MARKER_PARAMS_V1 params = { 0 };
+//    params.version = NV_LATENCY_MARKER_PARAMS_VER1;
+//    params.frameID = frameId;
+//    params.markerType = (NV_LATENCY_MARKER_TYPE)marker;
+//
+//    NVAPI_CHECK(NvAPI_D3D12_SetAsyncFrameMarker((ID3D12CommandQueue*)queue, &params));
+//    return ComputeStatus::eOk;
+//}
 
 ComputeStatus D3D12::createSharedHandle(Resource res, Handle& outHandle)
 {

@@ -237,7 +237,7 @@ SL_STRUCT(Resource, StructType({ 0x3a9d70cf, 0x2418, 0x4b72, { 0x83, 0x91, 0x13,
     //! Virtual address on GPU (if applicable)
     uint64_t gpuVirtualAddress{};
     //! VkImageCreateFlags
-    uint32_t flags;
+    uint32_t flags{};
     //! VkImageUsageFlags
     uint32_t usage{};
     //! Reserved for internal use

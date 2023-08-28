@@ -28,11 +28,6 @@
 
 #include "sl.h"
 #include "sl_consts.h"
-#include "sl_reflex.h"
-#include "sl_dlss.h"
-#include "sl_nis.h"
-#include "sl_nrd.h"
-#include "sl_dlss_g.h"
 #include "sl_mtss_g.h"
 
 namespace sl
@@ -97,96 +92,6 @@ inline const char* getResultAsStr(Result v)
     return "Unknown";
 }
 
-inline const char* getNRDMethodAsStr(NRDMethods v)
-{
-    switch (v)
-    {
-        SL_CASE_STR(NRDMethods::eOff);
-        SL_CASE_STR(NRDMethods::eReblurDiffuse);
-        SL_CASE_STR(NRDMethods::eReblurDiffuseOcclusion);
-        SL_CASE_STR(NRDMethods::eReblurSpecular);
-        SL_CASE_STR(NRDMethods::eReblurSpecularOcclusion);
-        SL_CASE_STR(NRDMethods::eReblurDiffuseSpecular);
-        SL_CASE_STR(NRDMethods::eReblurDiffuseSpecularOcclusion);
-        SL_CASE_STR(NRDMethods::eReblurDiffuseDirectionalOcclusion);
-        SL_CASE_STR(NRDMethods::eSigmaShadow);
-        SL_CASE_STR(NRDMethods::eSigmaShadowTranslucency);
-        SL_CASE_STR(NRDMethods::eRelaxDiffuse);
-        SL_CASE_STR(NRDMethods::eRelaxSpecular);
-        SL_CASE_STR(NRDMethods::eRelaxDiffuseSpecular);
-    };
-    return "Unknown";
-}
-
-inline const char* getNISModeAsStr(NISMode v)
-{
-    switch (v)
-    {
-        SL_CASE_STR(NISMode::eOff);
-        SL_CASE_STR(NISMode::eScaler);
-        SL_CASE_STR(NISMode::eSharpen);
-    };
-    return "Unknown";
-}
-
-inline const char* getNISHDRAsStr(NISHDR v)
-{
-    switch (v)
-    {
-        SL_CASE_STR(NISHDR::eNone);
-        SL_CASE_STR(NISHDR::eLinear);
-        SL_CASE_STR(NISHDR::ePQ);
-    };
-    return "Unknown";
-}
-
-inline const char* getReflexModeAsStr(ReflexMode mode)
-{
-    switch (mode)
-    {
-        SL_CASE_STR(ReflexMode::eOff);
-        SL_CASE_STR(ReflexMode::eLowLatency);
-        SL_CASE_STR(ReflexMode::eLowLatencyWithBoost);
-    };
-    return "Unknown";
-}
-
-inline const char* getReflexMarkerAsStr(ReflexMarker marker)
-{
-    switch (marker)
-    {
-        SL_CASE_STR(ReflexMarker::eSimulationStart);
-        SL_CASE_STR(ReflexMarker::eSimulationEnd);
-        SL_CASE_STR(ReflexMarker::eRenderSubmitStart);
-        SL_CASE_STR(ReflexMarker::eRenderSubmitEnd);
-        SL_CASE_STR(ReflexMarker::ePresentStart);
-        SL_CASE_STR(ReflexMarker::ePresentEnd);
-        SL_CASE_STR(ReflexMarker::eInputSample);
-        SL_CASE_STR(ReflexMarker::eTriggerFlash);
-        SL_CASE_STR(ReflexMarker::ePCLatencyPing);
-        SL_CASE_STR(ReflexMarker::eOutOfBandRenderSubmitStart);
-        SL_CASE_STR(ReflexMarker::eOutOfBandRenderSubmitEnd);
-        SL_CASE_STR(ReflexMarker::eOutOfBandPresentStart);
-        SL_CASE_STR(ReflexMarker::eOutOfBandPresentEnd);
-    };
-    return "Unknown";
-}
-
-inline const char* getDLSSModeAsStr(DLSSMode mode)
-{
-    switch (mode)
-    {
-        SL_CASE_STR(DLSSMode::eOff);
-        SL_CASE_STR(DLSSMode::eDLAA);
-        SL_CASE_STR(DLSSMode::eMaxPerformance);
-        SL_CASE_STR(DLSSMode::eBalanced);
-        SL_CASE_STR(DLSSMode::eMaxQuality);
-        SL_CASE_STR(DLSSMode::eUltraPerformance);
-        SL_CASE_STR(DLSSMode::eUltraQuality);
-    };
-    return "Unknown";
-}
-
 inline const char* getBufferTypeAsStr(BufferType buf)
 {
     switch (buf)
@@ -237,11 +142,6 @@ inline const char* getFeatureAsStr(Feature f)
 {
     switch (f)
     {
-        SL_CASE_STR(kFeatureDLSS);
-        SL_CASE_STR(kFeatureNRD);
-        SL_CASE_STR(kFeatureNIS);
-        SL_CASE_STR(kFeatureReflex);
-        SL_CASE_STR(kFeatureDLSS_G);
         SL_CASE_STR(kFeatureMTSS_G);
         SL_CASE_STR(kFeatureImGUI);
         SL_CASE_STR(kFeatureCommon);
@@ -255,11 +155,6 @@ inline const char* getFeatureFilenameAsStrNoSL(Feature f)
 {
     switch (f)
     {
-        case kFeatureDLSS: return "dlss";
-        case kFeatureNRD:  return "nrd";
-        case kFeatureNIS: return "nis";
-        case kFeatureReflex: return "reflex";
-        case kFeatureDLSS_G: return "dlss_g";
         case kFeatureMTSS_G: return "mtss_g";
         case kFeatureImGUI: return "imgui";
         case kFeatureCommon: return "common";

@@ -1121,72 +1121,72 @@ bool Generic::savePFM(const std::string &path, const char* srcBuffer, const int 
     return true;
 }
 
-ComputeStatus Generic::setSleepMode(const ReflexOptions& consts)
-{
-    NV_SET_SLEEP_MODE_PARAMS_V1 params = { 0 };
-    params.version = NV_SET_SLEEP_MODE_PARAMS_VER1;
-    params.bLowLatencyMode = consts.mode != ReflexMode::eOff;
-    params.bLowLatencyBoost = consts.mode == ReflexMode::eLowLatencyWithBoost;
-    params.minimumIntervalUs = consts.frameLimitUs;
-    params.bUseMarkersToOptimize = consts.useMarkersToOptimize;
-    NVAPI_CHECK(NvAPI_D3D_SetSleepMode((IUnknown*)m_typelessDevice, &params));
-    return ComputeStatus::eOk;
-}
-
-ComputeStatus Generic::getSleepStatus(ReflexState& settings)
-{
-
-    NV_GET_SLEEP_STATUS_PARAMS_V1 params = {};
-    params.version = NV_GET_SLEEP_STATUS_PARAMS_VER1;
-    NVAPI_CHECK(NvAPI_D3D_GetSleepStatus((IUnknown*)m_typelessDevice, &params));
-    return ComputeStatus::eOk;
-}
-
-ComputeStatus Generic::getLatencyReport(ReflexState& settings)
-{
-    NV_LATENCY_RESULT_PARAMS params = {};
-    params.version = NV_LATENCY_RESULT_PARAMS_VER1;
-    NVAPI_CHECK(NvAPI_D3D_GetLatency((IUnknown*)m_typelessDevice, &params));
-
-    for (auto i = 0; i < 64; i++)
-    {
-        settings.frameReport[i].frameID = params.frameReport[i].frameID;
-        settings.frameReport[i].inputSampleTime = params.frameReport[i].inputSampleTime;
-        settings.frameReport[i].simStartTime = params.frameReport[i].simStartTime;
-        settings.frameReport[i].simEndTime = params.frameReport[i].simEndTime;
-        settings.frameReport[i].renderSubmitStartTime = params.frameReport[i].renderSubmitStartTime;
-        settings.frameReport[i].renderSubmitEndTime = params.frameReport[i].renderSubmitEndTime;
-        settings.frameReport[i].presentStartTime = params.frameReport[i].presentStartTime;
-        settings.frameReport[i].presentEndTime = params.frameReport[i].presentEndTime;
-        settings.frameReport[i].driverStartTime = params.frameReport[i].driverStartTime;
-        settings.frameReport[i].driverEndTime = params.frameReport[i].driverEndTime;
-        settings.frameReport[i].osRenderQueueStartTime = params.frameReport[i].osRenderQueueStartTime;
-        settings.frameReport[i].osRenderQueueEndTime = params.frameReport[i].osRenderQueueEndTime;
-        settings.frameReport[i].gpuRenderStartTime = params.frameReport[i].gpuRenderStartTime;
-        settings.frameReport[i].gpuRenderEndTime = params.frameReport[i].gpuRenderEndTime;
-        settings.frameReport[i].gpuActiveRenderTimeUs = params.frameReport[i].gpuActiveRenderTimeUs;
-        settings.frameReport[i].gpuFrameTimeUs = params.frameReport[i].gpuFrameTimeUs;
-    }
-
-    return ComputeStatus::eOk;
-}
-
-ComputeStatus Generic::sleep()
-{
-    NVAPI_CHECK(NvAPI_D3D_Sleep((IUnknown*)m_typelessDevice));
-    return ComputeStatus::eOk;
-}
-
-ComputeStatus Generic::setReflexMarker(ReflexMarker marker, uint64_t frameId)
-{
-    NV_LATENCY_MARKER_PARAMS_V1 params = { 0 };
-    params.version = NV_LATENCY_MARKER_PARAMS_VER1;
-    params.frameID = frameId;
-    params.markerType = (NV_LATENCY_MARKER_TYPE)marker;
-    NVAPI_CHECK(NvAPI_D3D_SetLatencyMarker((IUnknown*)m_typelessDevice, &params));
-    return ComputeStatus::eOk;
-}
-
+//ComputeStatus Generic::setSleepMode(const ReflexOptions& consts)
+//{
+//    NV_SET_SLEEP_MODE_PARAMS_V1 params = { 0 };
+//    params.version = NV_SET_SLEEP_MODE_PARAMS_VER1;
+//    params.bLowLatencyMode = consts.mode != ReflexMode::eOff;
+//    params.bLowLatencyBoost = consts.mode == ReflexMode::eLowLatencyWithBoost;
+//    params.minimumIntervalUs = consts.frameLimitUs;
+//    params.bUseMarkersToOptimize = consts.useMarkersToOptimize;
+//    NVAPI_CHECK(NvAPI_D3D_SetSleepMode((IUnknown*)m_typelessDevice, &params));
+//    return ComputeStatus::eOk;
+//}
+//
+//ComputeStatus Generic::getSleepStatus(ReflexState& settings)
+//{
+//
+//    NV_GET_SLEEP_STATUS_PARAMS_V1 params = {};
+//    params.version = NV_GET_SLEEP_STATUS_PARAMS_VER1;
+//    NVAPI_CHECK(NvAPI_D3D_GetSleepStatus((IUnknown*)m_typelessDevice, &params));
+//    return ComputeStatus::eOk;
+//}
+//
+//ComputeStatus Generic::getLatencyReport(ReflexState& settings)
+//{
+//    NV_LATENCY_RESULT_PARAMS params = {};
+//    params.version = NV_LATENCY_RESULT_PARAMS_VER1;
+//    NVAPI_CHECK(NvAPI_D3D_GetLatency((IUnknown*)m_typelessDevice, &params));
+//
+//    for (auto i = 0; i < 64; i++)
+//    {
+//        settings.frameReport[i].frameID = params.frameReport[i].frameID;
+//        settings.frameReport[i].inputSampleTime = params.frameReport[i].inputSampleTime;
+//        settings.frameReport[i].simStartTime = params.frameReport[i].simStartTime;
+//        settings.frameReport[i].simEndTime = params.frameReport[i].simEndTime;
+//        settings.frameReport[i].renderSubmitStartTime = params.frameReport[i].renderSubmitStartTime;
+//        settings.frameReport[i].renderSubmitEndTime = params.frameReport[i].renderSubmitEndTime;
+//        settings.frameReport[i].presentStartTime = params.frameReport[i].presentStartTime;
+//        settings.frameReport[i].presentEndTime = params.frameReport[i].presentEndTime;
+//        settings.frameReport[i].driverStartTime = params.frameReport[i].driverStartTime;
+//        settings.frameReport[i].driverEndTime = params.frameReport[i].driverEndTime;
+//        settings.frameReport[i].osRenderQueueStartTime = params.frameReport[i].osRenderQueueStartTime;
+//        settings.frameReport[i].osRenderQueueEndTime = params.frameReport[i].osRenderQueueEndTime;
+//        settings.frameReport[i].gpuRenderStartTime = params.frameReport[i].gpuRenderStartTime;
+//        settings.frameReport[i].gpuRenderEndTime = params.frameReport[i].gpuRenderEndTime;
+//        settings.frameReport[i].gpuActiveRenderTimeUs = params.frameReport[i].gpuActiveRenderTimeUs;
+//        settings.frameReport[i].gpuFrameTimeUs = params.frameReport[i].gpuFrameTimeUs;
+//    }
+//
+//    return ComputeStatus::eOk;
+//}
+//
+//ComputeStatus Generic::sleep()
+//{
+//    NVAPI_CHECK(NvAPI_D3D_Sleep((IUnknown*)m_typelessDevice));
+//    return ComputeStatus::eOk;
+//}
+//
+//ComputeStatus Generic::setReflexMarker(ReflexMarker marker, uint64_t frameId)
+//{
+//    NV_LATENCY_MARKER_PARAMS_V1 params = { 0 };
+//    params.version = NV_LATENCY_MARKER_PARAMS_VER1;
+//    params.frameID = frameId;
+//    params.markerType = (NV_LATENCY_MARKER_TYPE)marker;
+//    NVAPI_CHECK(NvAPI_D3D_SetLatencyMarker((IUnknown*)m_typelessDevice, &params));
+//    return ComputeStatus::eOk;
+//}
+//
 ComputeStatus Generic::fetchTranslatedResourceFromCache(ICompute* compute, ResourceType type, Resource resource, TranslatedResource& shared, const char friendlyName[])
 {
     if (!compute || !resource || !resource->native)

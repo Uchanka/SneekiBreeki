@@ -1710,15 +1710,15 @@ DXGI_FORMAT D3D11::getCorrectFormat(DXGI_FORMAT Format)
             return Format;
     };
 }
-ComputeStatus D3D11::notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type)
-{
-    return ComputeStatus::eOk;
-}
-
-ComputeStatus D3D11::setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId)
-{
-    return ComputeStatus::eOk;
-}
+//ComputeStatus D3D11::notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type)
+//{
+//    return ComputeStatus::eOk;
+//}
+//
+//ComputeStatus D3D11::setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId)
+//{
+//    return ComputeStatus::eOk;
+//}
 
 ComputeStatus D3D11::createSharedHandle(Resource resource, Handle& outHandle)
 {

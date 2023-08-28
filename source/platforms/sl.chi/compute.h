@@ -23,7 +23,6 @@
 #pragma once
 
 #include "include/sl.h"
-#include "include/sl_reflex.h"
 #include "source/core/sl.extra/extra.h"
 
 namespace sl
@@ -602,13 +601,13 @@ public:
     virtual ComputeStatus endProfilingQueue(CommandQueue cmdQueue) = 0;
 
     // Latency API
-    virtual ComputeStatus setSleepMode(const ReflexOptions& consts) = 0;
-    virtual ComputeStatus getSleepStatus(ReflexState& settings) = 0;
-    virtual ComputeStatus getLatencyReport(ReflexState& settings) = 0;
-    virtual ComputeStatus sleep() = 0;
-    virtual ComputeStatus setReflexMarker(ReflexMarker marker, uint64_t frameId) = 0;
-    virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) = 0;
-    virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) = 0;
+    //virtual ComputeStatus setSleepMode(const ReflexOptions& consts) = 0;
+    //virtual ComputeStatus getSleepStatus(ReflexState& settings) = 0;
+    //virtual ComputeStatus getLatencyReport(ReflexState& settings) = 0;
+    //virtual ComputeStatus sleep() = 0;
+    //virtual ComputeStatus setReflexMarker(ReflexMarker marker, uint64_t frameId) = 0;
+    //virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) = 0;
+    //virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) = 0;
     
     // Sharing API
     virtual ComputeStatus fetchTranslatedResourceFromCache(ICompute* otherAPI, ResourceType type, Resource res, TranslatedResource& shared, const char friendlyName[] = "") = 0;
