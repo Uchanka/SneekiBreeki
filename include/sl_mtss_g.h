@@ -23,6 +23,14 @@ enum class MTSSGFlags : uint32_t
     eShowDebugOverlay          = 1 << 1,
 };
 
+struct APIError
+{
+    union
+    {
+        HRESULT hres;
+    };
+};
+
 // Adds various useful operators for our enum
 SL_ENUM_OPERATORS_32(MTSSGFlags)
 
