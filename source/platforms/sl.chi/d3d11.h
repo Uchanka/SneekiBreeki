@@ -187,8 +187,8 @@ public:
     virtual ComputeStatus beginProfiling(CommandList cmdList, UINT metadata, const char* marker) override final;
     virtual ComputeStatus endProfiling(CommandList cmdList) override final;
 
-    virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) override final;
-    virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) override final;
+    //virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) override final;
+    //virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) override final;
 
     virtual ComputeStatus prepareTranslatedResources(CommandList cmdList, const std::vector<std::pair<chi::TranslatedResource, chi::ResourceDescription>>& resourceList) override final;
     virtual ComputeStatus createSharedHandle(Resource res, Handle& handle)  override final;

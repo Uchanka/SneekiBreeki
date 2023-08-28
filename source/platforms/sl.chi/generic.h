@@ -273,11 +273,11 @@ public:
     ComputeStatus beginProfilingQueue(CommandQueue cmdList, uint32_t metadata, const char* marker)  override { return ComputeStatus::eOk; }
     ComputeStatus endProfilingQueue(CommandQueue cmdList)  override { return ComputeStatus::eOk; }
 
-    virtual ComputeStatus setSleepMode(const ReflexOptions& consts) override;
-    virtual ComputeStatus getSleepStatus(ReflexState& settings) override;
-    virtual ComputeStatus getLatencyReport(ReflexState& settings) override;
-    virtual ComputeStatus sleep() override;
-    virtual ComputeStatus setReflexMarker(ReflexMarker marker, uint64_t frameId) override;
+    //virtual ComputeStatus setSleepMode(const ReflexOptions& consts) override;
+    //virtual ComputeStatus getSleepStatus(ReflexState& settings) override;
+    //virtual ComputeStatus getLatencyReport(ReflexState& settings) override;
+    //virtual ComputeStatus sleep() override;
+    //virtual ComputeStatus setReflexMarker(ReflexMarker marker, uint64_t frameId) override;
     
 
     // Sharing API

@@ -115,7 +115,7 @@ void ImGuiDebugOverlay::Init(
 
         m_pImGuiCtx = m_pImGui->createContext(desc);
         m_pImGui->setCurrentContext(m_pImGuiCtx);
-        m_pImGui->setDisplaySize(sl::type::Float2(width, height));
+        m_pImGui->setDisplaySize(sl::type::Float2(static_cast<float>(width), static_cast<float>(height)));
 
         bool success = CreateInternalPixelShader();
         assert(success == true);

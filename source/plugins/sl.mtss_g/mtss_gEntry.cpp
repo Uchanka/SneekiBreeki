@@ -34,7 +34,7 @@ namespace mtssg
 
 #define MTSSFG_PERF 0
 #define MTSSFG_DPF  0
-#define MTSSFG_IMGUI 0
+#define MTSSFG_IMGUI 1
 
 #define MTSSFG_NOT_TEST() SL_LOG_WARN("This Path Not Test, Maybe Not Work")
 
@@ -304,7 +304,7 @@ uint32_t calcResourceUsageBytes(const sl::chi::Resource& resource, uint32_t coun
     assert(width != 0);
     assert(height != 0);
 
-    usageBytes = width * height * formatBpp * count;
+    usageBytes = width * height * static_cast<uint32_t>(formatBpp) * count;
     return usageBytes;
 }
 
@@ -367,7 +367,7 @@ uint32_t calcEstimatedVRAMUsageInBytes()
     {
         size_t depthBpp{};
         CHI_VALIDATE(ctx.pCompute->getBytesPerPixel(sl::chi::Format::eFormatD32S32, depthBpp));
-        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * depthBpp;
+        vRAMUsageInBytes += ctx.swapChainWidth * ctx.swapChainHeight * static_cast<uint32_t>(depthBpp);
     }
 
     if (ctx.prevHudLessColor)

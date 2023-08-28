@@ -36,7 +36,6 @@
 #include <chrono>
 
 #include "include/sl.h"
-#include "include/sl_dlss_g.h"
 #include "include/sl_hooks.h"
 #include "internal.h"
 #include "source/core/sl.exception/exception.h"

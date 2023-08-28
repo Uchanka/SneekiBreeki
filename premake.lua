@@ -5,8 +5,6 @@ local ROOT = "./"
 nvcfg = {}
 
 
-
-
 function os.winSdkVersion()
     local reg_arch = iif( os.is64bit(), "\\Wow6432Node\\", "\\" )
     local sdk_version = os.getWindowsRegistry( "HKLM:SOFTWARE" .. reg_arch .."Microsoft\\Microsoft SDKs\\Windows\\v10.0\\ProductVersion" )
@@ -310,117 +308,6 @@ project "sl.mtss_g"
 
 	vpaths { ["impl"] = {"./source/plugins/sl.mtss_g/**.h", "./source/plugins/sl.mtss_g/**.cpp" }}
 		
-	removefiles {"./source/core/sl.extra/extra.cpp"}
-	
-if (os.isdir("./source/plugins/sl.dlss_g")) then
-	project "sl.dlss_g"
-		kind "SharedLib"	
-		targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-		objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}") 
-		characterset ("MBCS")
-		dependson { "sl.common"}
-		pluginBasicSetup("dlss_g")
-
-		files { 
-			"./source/plugins/sl.dlss_g/**.h", 
-			"./source/plugins/sl.dlss_g/**.cpp", 		
-		}
-
-		links {"external/nvapi/amd64/nvapi64.lib"}
-
-		vpaths {["impl"] = { "./source/plugins/sl.dlss_g/**.h", "./source/plugins/sl.dlss_g/**.cpp" }}
-		
-		removefiles {"./source/core/sl.extra/extra.cpp"}
-end
-
-project "sl.dlss"
-	kind "SharedLib"	
-	targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-	objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}") 
-	characterset ("MBCS")
-	dependson { "sl.common"}
-	pluginBasicSetup("dlss")
-	
-	files { 
-		"./source/core/ngx/**.h",
-		"./source/core/ngx/**.cpp",		
-		"./source/plugins/sl.dlss/**.h", 
-		"./source/plugins/sl.dlss/**.cpp"		
-	}
-
-	vpaths { ["impl"] = {"./source/plugins/sl.dlss/**.h", "./source/plugins/sl.dlss/**.cpp" }}
-	vpaths { ["ngx"] = {"./source/core/ngx/**.h", "./source/core/ngx/**.cpp"}}
-		
-	removefiles {"./source/core/sl.extra/extra.cpp"}
-  	
-project "sl.nrd"
-	kind "SharedLib"	
-	targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-	objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}") 
-	characterset ("MBCS")
-	dependson { "sl.compute"}
-	dependson { "sl.common"}
-	pluginBasicSetup("nrd")
-	
-	files { 
-		"./source/plugins/sl.nrd/**.h", 
-		"./source/plugins/sl.nrd/**.cpp"		
-	}
-
-	vpaths { ["impl"] = {"./source/plugins/sl.nrd/**.h", "./source/plugins/sl.nrd/**.cpp" }}
-			
-	removefiles {"./source/core/sl.extra/extra.cpp"}
-   	
-
-
-project "sl.reflex"
-	kind "SharedLib"	
-	targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-	objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}") 
-	characterset ("MBCS")
-	pluginBasicSetup("reflex")
-	
-	files { 
-		"./source/plugins/sl.reflex/**.h", 
-		"./source/plugins/sl.reflex/**.cpp"		
-	}
-
-	vpaths { ["impl"] = {"./source/plugins/sl.reflex/**.h", "./source/plugins/sl.reflex/**.cpp" }}
-			
-	removefiles {"./source/core/sl.extra/extra.cpp"}
-   	
-project "sl.template"
-	kind "SharedLib"	
-	targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-	objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}") 
-	characterset ("MBCS")
-	pluginBasicSetup("template")
-	
-	files { 
-		"./source/plugins/sl.template/**.h", 
-		"./source/plugins/sl.template/**.cpp"		
-	}
-
-	vpaths { ["impl"] = {"./source/plugins/sl.template/**.h", "./source/plugins/sl.template/**.cpp" }}
-			
-	removefiles {"./source/core/sl.extra/extra.cpp"}
-	
-project "sl.nis"
-	kind "SharedLib"
-	targetdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-	objdir (ROOT .. "_artifacts/%{prj.name}/%{cfg.buildcfg}_%{cfg.platform}")
-	characterset ("MBCS")
-	dependson { "sl.compute"}
-	dependson { "sl.common"}
-	pluginBasicSetup("nis")
-
-	files {
-		"./source/plugins/sl.nis/**.h",
-		"./source/plugins/sl.nis/**.cpp"
-	}
-
-	vpaths { ["impl"] = {"./source/plugins/sl.nis/**.h", "./source/plugins/sl.nis/**.cpp" }}
-
 	removefiles {"./source/core/sl.extra/extra.cpp"}
 
 project "sl.imgui"

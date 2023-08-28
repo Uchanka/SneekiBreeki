@@ -367,8 +367,8 @@ public:
     ComputeStatus beginProfilingQueue(CommandQueue cmdQueue, UINT Metadata, const char* marker) override final;
     ComputeStatus endProfilingQueue(CommandQueue cmdQueue) override final;
 
-    virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) override final;
-    virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) override final;
+    //virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) override final;
+    //virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) override final;
 
     virtual ComputeStatus createSharedHandle(Resource res, Handle& handle)  override final;
     virtual ComputeStatus destroySharedHandle(Handle& handle)  override final;

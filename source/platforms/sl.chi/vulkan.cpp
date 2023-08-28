@@ -3059,7 +3059,7 @@ ComputeStatus Vulkan::getNativeFormat(Format format, NativeFormat& native)
     return ComputeStatus::eOk;
 };
 
- ComputeStatus Vulkan::setSleepMode(const ReflexOptions& consts)
+ /*ComputeStatus Vulkan::setSleepMode(const ReflexOptions& consts)
  {
      NVLL_VK_SET_SLEEP_MODE_PARAMS params{ 
          consts.mode != ReflexMode::eOff,
@@ -3141,6 +3141,6 @@ ComputeStatus Vulkan::getNativeFormat(Format format, NativeFormat& native)
      NVLL_VK_LATENCY_MARKER_PARAMS params{ frameId, (NVLL_VK_LATENCY_MARKER_TYPE)marker };
      LL_CHECK(NvLL_VK_SetLatencyMarker(m_device, &params));
      return ComputeStatus::eOk;
- }
+ }*/
 }
 }

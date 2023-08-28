@@ -339,13 +339,13 @@ public:
     virtual ComputeStatus beginPerfSection(CommandList cmdList, const char *section, unsigned int node, bool reset = false) override;
     virtual ComputeStatus endPerfSection(CommandList cmdList, const char *section, float &avgTimeMS, unsigned int node) override;
 
-    virtual ComputeStatus setSleepMode(const ReflexOptions& consts) override final;
-    virtual ComputeStatus getSleepStatus(ReflexState& settings) override final;
-    virtual ComputeStatus getLatencyReport(ReflexState& settings) override final;
-    virtual ComputeStatus sleep() override final;
-    virtual ComputeStatus setReflexMarker(ReflexMarker marker, uint64_t frameId) override final;
-    virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) override final;
-    virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) override final;
+    //virtual ComputeStatus setSleepMode(const ReflexOptions& consts) override final;
+    //virtual ComputeStatus getSleepStatus(ReflexState& settings) override final;
+    //virtual ComputeStatus getLatencyReport(ReflexState& settings) override final;
+    //virtual ComputeStatus sleep() override final;
+    //virtual ComputeStatus setReflexMarker(ReflexMarker marker, uint64_t frameId) override final;
+    //virtual ComputeStatus notifyOutOfBandCommandQueue(CommandQueue queue, OutOfBandCommandQueueType type) override final;
+    //virtual ComputeStatus setAsyncFrameMarker(CommandQueue queue, ReflexMarker marker, uint64_t frameId) override final;
 
     // Helper methods for NGX feature requirements and slIsFeatureSupported
     static ComputeStatus createInstanceAndFindPhysicalDevice(uint32_t id, chi::Instance& instance, chi::PhysicalDevice& device);

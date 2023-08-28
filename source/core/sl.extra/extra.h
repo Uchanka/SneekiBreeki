@@ -340,7 +340,7 @@ private:
     std::atomic<uint64_t> n = 0;
 
     double sum{};
-    double window[kAverageMeterWindowSize];
+    double window[kAverageMeterWindowSize] = {};
 
 #ifdef SL_WINDOWS
     LARGE_INTEGER frequency{};

@@ -127,11 +127,6 @@ public:
         // Build inclusion list based on preferences
         std::vector<Feature> features =
         {
-            kFeatureDLSS,
-            kFeatureNRD,
-            kFeatureNIS,
-            kFeatureReflex,
-            kFeatureDLSS_G,
             kFeatureMTSS_G,
             kFeatureImGUI
         };
