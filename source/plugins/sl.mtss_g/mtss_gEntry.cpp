@@ -1178,7 +1178,7 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
     getTaggedResource(kBufferTypeMotionVectors, temp, 0);
 
 #if MTSSFG_IMGUI
-    sl::imgui::ImGUI *pImGui;
+    sl::imgui::ImGUI* pImGui = nullptr;
     param::getPointerParam(parameters, param::imgui::kInterface, &pImGui);
     ctx.pDebugOverlay = new sl::ImGuiDebugOverlay(pImGui, ctx.pCompute, device, ctx.platform);
 #endif
