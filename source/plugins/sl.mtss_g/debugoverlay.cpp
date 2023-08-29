@@ -198,6 +198,21 @@ void ImGuiDebugOverlay::DrawMtssFG(const MtssFgDebugOverlayInfo& info)
                                     MevcDrawCallBack);
         }
 
+        {
+            m_pImGui->setNextWindowDockId(id, sl::imgui::Condition::eFirstUseEver);
+
+            const char*   pText[1]      = {"UI Color"};
+            sl::Resource* pResources[1] = {info.pUiColor};
+
+            DrawTextureWithNewFrame("UI Color",
+                                    pText,
+                                    pResources,
+                                    1,
+                                    info.pUiColor->width,
+                                    info.pUiColor->height,
+                                    ColorDrawCallBack);
+        }
+
         m_pImGui->end();
 
         if (IsD3d11())

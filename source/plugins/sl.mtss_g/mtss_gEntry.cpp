@@ -118,6 +118,7 @@ struct MTSSGContext
     CommonResource    currMvec{};
     CommonResource    currDepth{};
     CommonResource    currHudLessColor{};
+    CommonResource    uiColor{};
     sl::chi::Resource prevMvec{};
     sl::chi::Resource prevDepth{};
     sl::chi::Resource prevHudLessColor{};
@@ -557,6 +558,16 @@ sl::Result acquireTaggedResource(uint32_t viewportId)
         ret = getTaggedResource(kBufferTypeMotionVectors, ctx.currMvec, viewportId);
     }
 
+    if (ret == sl::Result::eOk)
+    {
+        ret = getTaggedResource(kBufferTypeUIColorAndAlpha, ctx.uiColor, viewportId);
+        if (ret != sl::Result::eOk)
+        {
+            SL_LOG_WARN("UI Color And Alpha Not Tagged, The Generated Frame Will Not Contaion UI");
+            ret = sl::Result::eOk;
+        }
+    }
+
     if (ret != sl::Result::eOk)
     {
         SL_LOG_ERROR("Acqueire FG Tagged Resource Fail");
@@ -994,6 +1005,7 @@ void presentCommon(IDXGISwapChain*                swapChain,
             info.pCurrHudLessColor = ctx.currHudLessColor;
             info.pPrevMotionVector = ctx.prevMvec;
             info.pCurrMotionVector = ctx.currMvec;
+            info.pUiColor          = ctx.uiColor;
             ctx.pDebugOverlay->DrawMtssFG(info);
         }
 #endif

@@ -30,6 +30,7 @@ struct MtssFgDebugOverlayInfo
     sl::Resource*  pCurrHudLessColor;
     sl::Resource*  pPrevMotionVector;
     sl::Resource*  pCurrMotionVector;
+    sl::Resource*  pUiColor;
 
     sl::Resource* pRenderTarget;
 };
