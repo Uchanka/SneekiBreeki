@@ -1,24 +1,4 @@
-/*
-* Copyright (c) 2022 NVIDIA CORPORATION. All rights reserved
-*
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-*
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-*
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*/ 
+/* Copyright (c) 2020-2023 MooreThreads Coporation. All rights reserved. */
 
 #define _UNICODE 1
 #define UNICODE 1
@@ -129,11 +109,11 @@ namespace sl
 namespace security
 {
 
-bool isSignedByNVIDIA(const wchar_t* pathToFile)
+bool isSignedByMooreThreads(const wchar_t* pathToFile)
 {
     bool valid = false;
 
-    // Now let's make sure this is actually signed by NVIDIA
+    // Now let's make sure this is actually signed by MooreThreads
 
     DWORD dwEncoding, dwContentType, dwFormatType;
     HCERTSTORE hStore = NULL;
@@ -432,15 +412,15 @@ bool verifyEmbeddedSignature(const wchar_t* pathToFile)
         valid &= WinTrustData.pSignatureSettings->cSecondarySigs == 1;
         if (!valid)
         {
-            printf("File '%S' does not have the secondary NVIDIA signature - Streamline will not load unsecured modules\n", pathToFile);
+            printf("File '%S' does not have the secondary MooreThreads signature - Streamline will not load unsecured modules\n", pathToFile);
         }
         else
         {
-            // The secondary signature must be from NVIDIA
-            valid &= isSignedByNVIDIA(pathToFile);
+            // The secondary signature must be from MooreThreads
+            valid &= isSignedByMooreThreads(pathToFile);
             if (valid)
             {
-                printf("File '%S' is signed by NVIDIA and the signature was verified.\n", pathToFile);
+                printf("File '%S' is signed by MooreThreads and the signature was verified.\n", pathToFile);
             }
             else
             {
