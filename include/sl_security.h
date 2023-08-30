@@ -129,11 +129,11 @@ namespace sl
 namespace security
 {
 
-bool isSignedByNVIDIA(const wchar_t* pathToFile)
+bool isSignedByMooreThreads(const wchar_t* pathToFile)
 {
     bool valid = false;
 
-    // Now let's make sure this is actually signed by NVIDIA
+    // Now let's make sure this is actually signed by MooreThreads
 
     DWORD dwEncoding, dwContentType, dwFormatType;
     HCERTSTORE hStore = NULL;
@@ -432,15 +432,15 @@ bool verifyEmbeddedSignature(const wchar_t* pathToFile)
         valid &= WinTrustData.pSignatureSettings->cSecondarySigs == 1;
         if (!valid)
         {
-            printf("File '%S' does not have the secondary NVIDIA signature - Streamline will not load unsecured modules\n", pathToFile);
+            printf("File '%S' does not have the secondary MooreThreads signature - Streamline will not load unsecured modules\n", pathToFile);
         }
         else
         {
-            // The secondary signature must be from NVIDIA
-            valid &= isSignedByNVIDIA(pathToFile);
+            // The secondary signature must be from MooreThreads
+            valid &= isSignedByMooreThreads(pathToFile);
             if (valid)
             {
-                printf("File '%S' is signed by NVIDIA and the signature was verified.\n", pathToFile);
+                printf("File '%S' is signed by MooreThreads and the signature was verified.\n", pathToFile);
             }
             else
             {
