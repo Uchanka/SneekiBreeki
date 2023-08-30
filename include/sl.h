@@ -1,4 +1,24 @@
-/* Copyright (c) 2020-2023 MooreThreads Coporation. All rights reserved. */
+/*
+* Copyright (c) 2022 NVIDIA CORPORATION. All rights reserved
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in all
+* copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+* SOFTWARE.
+*/
 
 #pragma once
 
@@ -369,7 +389,7 @@ SL_STRUCT(Preferences, StructType({ 0x1ca10965, 0xbf8e, 0x432b, { 0x8d, 0xa1, 0x
     const Feature* featuresToLoad{};
     //! Required - Number of features to load, only used when list is not a null pointer
     uint32_t numFeaturesToLoad{};
-    //! Optional - Id provided by MooreThreads, if not specified then engine type and version are required
+    //! Optional - Id provided by NVIDIA, if not specified then engine type and version are required
     uint32_t applicationId{};
     //! Optional - Type of the rendering engine used, if not specified then applicationId is required
     EngineType engine = EngineType::eCustom;
