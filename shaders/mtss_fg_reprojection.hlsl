@@ -70,7 +70,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     uint halfTipDepthAsUIntHigh19 = compressDepth(halfTipDepth);
 
 
-    float2 halfTopTranslation = velocityTopCombined * distanceHalfTop;
+    float2 halfTopTranslation = velocityCombined * distanceHalfTop;
     float2 halfTopTracedScreenPos = screenPos + halfTopTranslation;
     int2 halfTopTracedIndex = floor(halfTopTracedScreenPos * viewportSize);
     float2 halfTopTracedFloatCenter = float2(halfTopTracedIndex) + float2(0.5f, 0.5f);	
