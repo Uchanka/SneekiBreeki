@@ -95,7 +95,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     }
     else
     {
-        float2 velocityAdvection = currMotionUnprojected[currentPixelIndex];
+        float2 velocityAdvection = currMotionUnprojected[currentPixelIndex] * viewportInv;
 
         float2 advTipTranslation = distanceTip * velocityHalfTip;
         float2 advTopTranslation = distanceTop * velocityAdvection;

@@ -48,7 +48,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosHalfTip = screenPos - motionVectorHalfTip * (distanceFull - distanceHalfTip);
     float2 motionCaliberatedUVHalfTip = samplePosHalfTip;
     motionCaliberatedUVHalfTip = clamp(motionCaliberatedUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-	float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0);
+	float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
     if (bIsHalfTipUnwritten)
     {
         motionHalfTipCaliberated = float2(0.0f, 0.0f);
@@ -62,7 +62,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosHalfTop = screenPos - motionVectorHalfTop * distanceHalfTop;
     float2 motionCaliberatedUVHalfTop = samplePosHalfTop;
     motionCaliberatedUVHalfTop = clamp(motionCaliberatedUVHalfTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTop, 0);
+    float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTop, 0) * viewportInv;
     if (bIsHalfTopUnwritten)
     {
         motionHalfTopCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);

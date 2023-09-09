@@ -43,7 +43,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosFull = screenPos + motionVectorFull * distanceFull;
     float2 motionCaliberatedUVFull = samplePosFull;
     motionCaliberatedUVFull = clamp(motionCaliberatedUVFull, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 motionFullCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVFull, 0);
+    float2 motionFullCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVFull, 0) * viewportInv;
     if (bIsFullUnwritten)
     {
         motionFullCaliberated = float2(0.0f, 0.0f);
