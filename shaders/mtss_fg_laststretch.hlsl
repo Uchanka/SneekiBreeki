@@ -2,11 +2,11 @@
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-Texture2D<mtss_float4> motionVectorFiner;
-Texture2D<mtss_float4> motionVectorCoarser;
-Texture2D<mtss_float> motionReliabilityCoarser;
+Texture2D<float2> motionVectorFiner;
+Texture2D<float2> motionVectorCoarser;
+Texture2D<float> motionReliabilityCoarser;
 
-RWTexture2D<mtss_float4> motionVectorFinerUAV;
+RWTexture2D<float2> motionVectorFinerUAV;
 
 cbuffer shaderConsts : register(b0)
 {
@@ -25,11 +25,11 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 	int2 finerPixelIndex = dispatchThreadId;
 	int2 coarserPixelIndex = finerPixelIndex / 2;
 	
-	mtss_float4 finerVector = motionVectorFiner[finerPixelIndex];
-	mtss_float finerReliability = all(finerVector == 0.0f) ? 0.0f : 1.0f;
-	mtss_float coarserReliability = motionReliabilityCoarser[coarserPixelIndex];
+	float2 finerVector = motionVectorFiner[finerPixelIndex];
+	float finerReliability = all(finerVector == 0.0f) ? 0.0f : 1.0f;
+	float coarserReliability = motionReliabilityCoarser[coarserPixelIndex];
 	
-	mtss_float4 selectedVector = 0.0f;
+	float2 selectedVector = 0.0f;
 	if (finerReliability == 0.0f)
 	{
 		selectedVector = motionVectorCoarser[coarserPixelIndex];

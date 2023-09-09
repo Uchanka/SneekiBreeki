@@ -2,10 +2,10 @@
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-Texture2D<mtss_float4> motionVectorFiner;
+Texture2D<float2> motionVectorFiner;
 
-RWTexture2D<mtss_float4> motionVectorCoarser;
-RWTexture2D<mtss_float> motionReliability; //This is coarse too
+RWTexture2D<float2> motionVectorCoarser;
+RWTexture2D<float> motionReliability; //This is coarse too
 
 cbuffer shaderConsts : register(b0)
 {
@@ -24,18 +24,18 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     int2 coarserPixelIndex = dispatchThreadId;
 	
     int2 finerPixelUpperLeft = 2 * coarserPixelIndex;
-	mtss_float4 filteredVector = 0.0f;
-	mtss_float perPixelWeight = 0.0f;
+	float2 filteredVector = 0.0f;
+	float perPixelWeight = 0.0f;
 	{
         for (int i = 0; i < subsampleCount4PointTian; ++i)
         {
             int2 finerIndex = finerPixelUpperLeft + subsamplePixelOffset4PointTian[i];
-			mtss_float4 finerVector = motionVectorFiner[finerIndex];
-			mtss_float validity = all(finerVector == 0.0f) ? 0.0f : 1.0f;
+			float2 finerVector = motionVectorFiner[finerIndex];
+			float validity = all(finerVector == 0.0f) ? 0.0f : 1.0f;
             filteredVector += finerVector;
             perPixelWeight += validity;
         }
-		mtss_float normalization = SafeRcp(mtss_float(subsampleCount4PointTian));
+		float normalization = SafeRcp(float(subsampleCount4PointTian));
         filteredVector *= normalization;
         perPixelWeight *= normalization;
     }

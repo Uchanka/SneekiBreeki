@@ -3,13 +3,16 @@
 
 Texture2D<float3> colorTextureTip;
 Texture2D<float> depthTextureTip;
-Texture2D<float2> prevMotionUnprojected;
-
 Texture2D<float3> colorTextureTop;
 Texture2D<float> depthTextureTop;
+
 Texture2D<float2> currMotionUnprojected;
 
-Texture2D<float4> motionReprojected;
+Texture2D<float2> motionReprojectedFull;
+Texture2D<float2> motionReprojectedHalfTip;
+Texture2D<float2> motionReprojectedHalfTop;
+
+Texture2D<float4> uiColorTexture;
 
 RWTexture2D<float4> outputTexture;
 
@@ -40,12 +43,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     int2 currentPixelIndex = dispatchThreadId;
     float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
     float2 viewportUV = pixelCenter * viewportInv;
-#ifdef UNREAL_ENGINE_COORDINATES
-    float2 screenPos = ViewportUVToScreenPos(viewportUV);
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
     float2 screenPos = viewportUV;
-#endif
     float4 motionVector = motionReprojected[currentPixelIndex];
     
     float2 velocityTipCombined = motionVector.zw;
@@ -62,28 +60,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 	
     float2 tipTranslation = velocityTipCombined * distanceTip;
     float2 topTranslation = velocityTopCombined * distanceTop;
-	
-#ifdef UNREAL_ENGINE_COORDINATES
-    float2 tipTracedScreenPos = screenPos - tipTranslation;
-    float2 topTracedScreenPos = screenPos + topTranslation;
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
+
     float2 tipTracedScreenPos = screenPos + tipTranslation;
     float2 topTracedScreenPos = screenPos - topTranslation;
-#endif
 
-#ifdef UNREAL_ENGINE_COORDINATES
-    float2 sampleUVTip = ScreenPosToViewportUV(tipTracedScreenPos);
-    sampleUVTip = clamp(sampleUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 sampleUVTop = ScreenPosToViewportUV(topTracedScreenPos);
-    sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
     float2 sampleUVTip = tipTracedScreenPos;
     sampleUVTip = clamp(sampleUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
     float2 sampleUVTop = topTracedScreenPos;
     sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-#endif
 	
 	float3 tipSample = colorTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
     float tipDepth = depthTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
@@ -93,12 +77,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float3 finalSample = float3(0.0f, 0.0f, 0.0f);
     if (isTipVisible == 1 && isTopVisible == 1)
     {
-#ifdef DEPTH_LESSER_CLOSER
-        finalSample = tipDepth < topDepth ? tipSample : topSample;
-#endif
-#ifdef DEPTH_GREATER_CLOSER
         finalSample = tipDepth > topDepth ? tipSample : topSample;
-#endif
         //finalSample = debugRed;
     }
     else if (isTipVisible == 1)
@@ -117,13 +96,8 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         float topDepthDist = depthTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
         float3 tipColorValue = colorTextureTip.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
         float3 topColorValue = colorTextureTop.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
-        
-#ifdef DEPTH_LESSER_CLOSER
-        float depthAlpha = (1.0f - topDepth) * SafeRcp(2.0f - tipDepth - topDepth);
-#endif
-#ifdef DEPTH_GREATER_CLOSER
+    
         float depthAlpha = topDepth * SafeRcp(tipDepth + topDepth);
-#endif
         finalSample = lerp(tipColorValue, topColorValue, depthAlpha);
         //finalSample = debugMagenta;
     }
