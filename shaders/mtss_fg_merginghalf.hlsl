@@ -36,6 +36,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 viewportUV = pixelCenter * viewportInv;
     float2 screenPos = viewportUV;
 	
+    const float distanceFull = tipTopDistance.x + tipTopDistance.y;
     const float distanceHalfTip = tipTopDistance.x;
     const float distanceHalfTop = tipTopDistance.y;
 	
@@ -43,7 +44,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     uint halfTipY = motionReprojHalfTipY[currentPixelIndex];
     int2 halfTipIndex = int2(halfTipX & IndexLast13DigitsMask, halfTipY & IndexLast13DigitsMask);
     bool bIsHalfTipUnwritten = any(halfTipIndex == UnwrittenIndexIndicator);
-    float2 motionVectorHalfTip = prevMotionUnprojected[halfTipIndex] * viewportInv;
+    float2 motionVectorHalfTip = currMotionUnprojected[halfTipIndex] * viewportInv;
     float2 samplePosHalfTip = screenPos - motionVectorHalfTip * (distanceFull - distanceHalfTip);
     float2 motionCaliberatedUVHalfTip = samplePosHalfTip;
     motionCaliberatedUVHalfTip = clamp(motionCaliberatedUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
