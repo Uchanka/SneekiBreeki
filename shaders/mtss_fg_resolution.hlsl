@@ -56,7 +56,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     bool isTopInvisible = any(velocityHalfTop == ImpossibleMotionValue) ? true : false;
     bool isTopVisible = !isTopInvisible;
 
-    if (isTopinvisible)
+    if (isTopInvisible)
     {
         velocityHalfTop -= float2(ImpossibleMotionOffset, ImpossibleMotionOffset);
     }
