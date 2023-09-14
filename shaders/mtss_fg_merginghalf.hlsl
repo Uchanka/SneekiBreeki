@@ -24,7 +24,7 @@ cbuffer shaderConsts : register(b0)
     float2 viewportInv;
 }
 
-SamplerState bilinearMirroredSampler : register(s0);
+SamplerState bilinearClampedSampler : register(s0);
 
 #define TILE_SIZE 8
 
@@ -52,10 +52,10 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosHalfTip = screenPos - motionVectorHalfTip * (distanceFull - distanceHalfTip);
     float2 motionCaliberatedUVHalfTip = samplePosHalfTip;
     motionCaliberatedUVHalfTip = clamp(motionCaliberatedUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-	float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
+    float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearClampedSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
     if (all(abs(motionHalfTipCaliberated) < viewportInv))
     {
-        motionHalfTipCaliberated = -ComputeStaticVelocityTopTip(screenPos, prevDepthTexture.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0).r, prevClipToClip);
+        motionHalfTipCaliberated = -ComputeStaticVelocityTopTip(screenPos, prevDepthTexture.SampleLevel(bilinearClampedSampler, motionCaliberatedUVHalfTip, 0).r, prevClipToClip);
     }
 	
     uint halfTopX = motionReprojHalfTopX[currentPixelIndex];
@@ -66,7 +66,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosHalfTop = screenPos - motionVectorHalfTop * distanceHalfTop;
     float2 motionCaliberatedUVHalfTop = samplePosHalfTop;
     motionCaliberatedUVHalfTop = clamp(motionCaliberatedUVHalfTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTop, 0) * viewportInv;
+    float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearClampedSampler, motionCaliberatedUVHalfTop, 0) * viewportInv;
     if (bIsHalfTopUnwritten)
     {
         motionHalfTopCaliberated = float2(0.0f, 0.0f) + float2(ImpossibleMotionOffset, ImpossibleMotionOffset);

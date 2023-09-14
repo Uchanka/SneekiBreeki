@@ -24,7 +24,7 @@ cbuffer shaderConsts : register(b0)
     float2 viewportInv;
 };
 
-SamplerState bilinearMirroredSampler : register(s0);
+SamplerState bilinearClampedSampler : register(s0);
 
 #define TILE_SIZE 8
 
@@ -78,10 +78,10 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 sampleUVTop = topTracedScreenPos;
     sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 	
-	float3 tipSample = colorTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
-    float tipDepth = depthTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
-    float3 topSample = colorTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
-    float topDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
+    float3 tipSample = colorTextureTip.SampleLevel(bilinearClampedSampler, sampleUVTip, 0);
+    float tipDepth = depthTextureTip.SampleLevel(bilinearClampedSampler, sampleUVTip, 0);
+    float3 topSample = colorTextureTop.SampleLevel(bilinearClampedSampler, sampleUVTop, 0);
+    float topDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVTop, 0);
 	
     float3 finalSample = float3(0.0f, 0.0f, 0.0f);
     if (isTopVisible)
@@ -113,10 +113,10 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         float2 sampleAdvUVTop = topAdvectedScreenPos;
         sampleAdvUVTop = clamp(sampleAdvUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 
-        float3 tipAdvSample = colorTextureTip.SampleLevel(bilinearMirroredSampler, sampleAdvUVTip, 0);
-        float tipAdvDepth = depthTextureTip.SampleLevel(bilinearMirroredSampler, sampleAdvUVTip, 0);
-        float3 topAdvSample = colorTextureTop.SampleLevel(bilinearMirroredSampler, sampleAdvUVTop, 0);
-        float topAdvDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleAdvUVTop, 0);
+        float3 tipAdvSample = colorTextureTip.SampleLevel(bilinearClampedSampler, sampleAdvUVTip, 0);
+        float tipAdvDepth = depthTextureTip.SampleLevel(bilinearClampedSampler, sampleAdvUVTip, 0);
+        float3 topAdvSample = colorTextureTop.SampleLevel(bilinearClampedSampler, sampleAdvUVTop, 0);
+        float topAdvDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleAdvUVTop, 0);
 
         float3 finalSampleAdv = lerp(tipAdvSample, topAdvSample, tipAdvDepth * SafeRcpRet1(tipAdvDepth + topAdvDepth));
 

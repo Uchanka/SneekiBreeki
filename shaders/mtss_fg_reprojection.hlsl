@@ -24,7 +24,7 @@ cbuffer shaderConsts : register(b0)
     float2 viewportInv;
 };
 
-SamplerState bilinearMirroredSampler : register(s0);
+SamplerState bilinearClampedSampler : register(s0);
 
 #define TILE_SIZE 8
 //------------------------------------------------------- ENTRY POINT
@@ -38,7 +38,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
     float2 viewportUV = pixelCenter * viewportInv;
     float2 screenPos = viewportUV;
-    float2 motionVector = currMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
+    float2 motionVector = currMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0) * viewportInv;
 
     const float distanceFull = tipTopDistance.x + tipTopDistance.y;
     const float distanceHalfTip = tipTopDistance.x;
@@ -54,7 +54,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosFull = fullTracedPos - fullTranslation;
     float2 sampleUVFull = samplePosFull;
     sampleUVFull = clamp(sampleUVFull, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float fullDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVFull, 0);
+    float fullDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVFull, 0);
     uint fullDepthAsUIntHigh19 = compressDepth(fullDepth);
 
 
@@ -66,7 +66,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosHalfTip = halfTipTracedPos + halfTipTranslation;
     float2 sampleUVHalfTip = samplePosHalfTip;
     sampleUVHalfTip = clamp(sampleUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float halfTipDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVHalfTip, 0);
+    float halfTipDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVHalfTip, 0);
     uint halfTipDepthAsUIntHigh19 = compressDepth(halfTipDepth);
 
 
@@ -78,7 +78,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 samplePosHalfTop = halfTopTracedPos - halfTopTranslation;
     float2 sampleUVHalfTop = samplePosHalfTop;
     sampleUVHalfTop = clamp(sampleUVHalfTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-	float halfTopDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVHalfTop, 0);
+    float halfTopDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVHalfTop, 0);
     uint halfTopDepthAsUIntHigh19 = compressDepth(halfTopDepth);
 	
     uint packedAsUINTHigh19FullX = fullDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
