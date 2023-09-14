@@ -939,7 +939,7 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
     CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.uiColor));
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(9, 0, ctx.generatedFrame));
 
-    CHI_VALIDATE(ctx.pCompute->bindConsts(9, 0, pCb, sizeof(*pCb), 1));
+    CHI_VALIDATE(ctx.pCompute->bindConsts(10, 0, pCb, sizeof(*pCb), 1));
 
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
