@@ -69,7 +69,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTop, 0) * viewportInv;
     if (bIsHalfTopUnwritten)
     {
-        motionHalfTopCaliberated = float2(0.0f, 0.0f) + float2(ImpossibleMotionValue, ImpossibleMotionValue);
+        motionHalfTopCaliberated = float2(0.0f, 0.0f) + float2(ImpossibleMotionOffset, ImpossibleMotionOffset);
     }
 	
 	{

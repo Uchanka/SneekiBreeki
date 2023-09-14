@@ -12,7 +12,7 @@ Texture2D<float2> motionReprojectedFull;
 Texture2D<float2> motionReprojectedHalfTip;
 Texture2D<float2> motionReprojectedHalfTop;
 
-Texture2D<float4> uiColorTexture;
+//Texture2D<float4> uiColorTexture;
 
 RWTexture2D<float4> outputTexture;
 
@@ -130,9 +130,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         bool bIsValidhistoryPixel = all(uint2(currentPixelIndex) < viewportSize);
         if (bIsValidhistoryPixel)
         {
-            float4 uiColorBlendingIn = uiColorTexture[currentPixelIndex];
-            float3 finalOutputColor = lerp(finalSample, uiColorBlendingIn.rgb, uiColorBlendingIn.a);
-            outputTexture[currentPixelIndex] = float4(finalOutputColor, 1.0f);
+            //float4 uiColorBlendingIn = uiColorTexture[currentPixelIndex];
+            //float3 finalOutputColor = lerp(finalSample, uiColorBlendingIn.rgb, uiColorBlendingIn.a);
+            outputTexture[currentPixelIndex] = float4(finalSample, 1.0f);
             //outputTexture[currentPixelIndex] = float4(motionUnprojected[currentPixelIndex], motionUnprojected[currentPixelIndex]);
             //outputTexture[currentPixelIndex] = float4(velocityTopCombined, velocityTipCombined) * 10.0f;
         }
