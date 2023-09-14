@@ -48,7 +48,8 @@ static uint UnwrittenIndexIndicator = UnwrittenLast13DigitsMask;
 static uint UnwrittenMTSSIndicator = UnwrittenLast1DigitMT1;
 static uint WrittenMTSSIndicator = WrittenLast1DigitMT1;
 
-static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
+static float ImpossibleMotionValue = 1.0f; //Have to use this 2's power to prevent floating point gimmicks
+static float ImpossibleMotionOffset = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
 
 //static int depthTotalBits = 19;
 static int expCustomized = 7;

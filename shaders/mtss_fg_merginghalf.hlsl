@@ -11,9 +11,13 @@ RWTexture2D<float2> motionReprojectedTip;
 RWTexture2D<float2> motionReprojectedTop;
 
 Texture2D<float2> currMotionUnprojected;
+Texture2D<float> prevDepthTexture;
 
 cbuffer shaderConsts : register(b0)
 {
+    float4x4 prevClipToClip;
+    float4x4 clipToPrevClip;
+    
     uint2 dimensions;
     float2 tipTopDistance;
     float2 viewportSize;
@@ -49,9 +53,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionCaliberatedUVHalfTip = samplePosHalfTip;
     motionCaliberatedUVHalfTip = clamp(motionCaliberatedUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 	float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
-    if (bIsHalfTipUnwritten)
+    if (all(abs(motionHalfTipCaliberated)) < viewportInv)
     {
-        motionHalfTipCaliberated = float2(0.0f, 0.0f);
+        motionHalfTipCaliberated = -ComputeStaticVelocityTopTip(screenPos, prevDepthTexture.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0).r, prevClipToClip);
     }
 	
     uint halfTopX = motionReprojHalfTopX[currentPixelIndex];
@@ -65,7 +69,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTop, 0) * viewportInv;
     if (bIsHalfTopUnwritten)
     {
-        motionHalfTopCaliberated = float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
+        motionHalfTopCaliberated = float2(0.0f, 0.0f) + float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
     }
 	
 	{

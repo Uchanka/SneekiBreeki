@@ -8,9 +8,13 @@ RWTexture2D<uint> motionReprojFullY;
 RWTexture2D<float2> motionReprojectedFull;
 
 Texture2D<float2> currMotionUnprojected;
+Texture2D<float> prevDepthTexture;
 
 cbuffer shaderConsts : register(b0)
 {
+    float4x4 prevClipToClip;
+    float4x4 clipToPrevClip;
+    
     uint2 dimensions;
     float2 tipTopDistance;
     float2 viewportSize;
@@ -44,9 +48,9 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionCaliberatedUVFull = samplePosFull;
     motionCaliberatedUVFull = clamp(motionCaliberatedUVFull, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
     float2 motionFullCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVFull, 0) * viewportInv;
-    if (bIsFullUnwritten)
+    if (all(abs(motionFullCaliberated)) < viewportInv)
     {
-        motionFullCaliberated = float2(0.0f, 0.0f);
+        motionFullCaliberated = -ComputeStaticVelocityTopTip(screenPos, prevDepthTexture.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVFull, 0).r, prevClipToClip);
     }
     
 	{
