@@ -858,7 +858,7 @@ void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct* pCb, uint32_
 
     CHI_VALIDATE(ctx.pCompute->bindConsts(9, 0, pCb, sizeof(*pCb), 1));
 
-    CHI_VALIDATE(ctx.pCompute->bindSampler(10, 0, chi::eSamplerLinearMirror));
+    CHI_VALIDATE(ctx.pCompute->bindSampler(10, 0, chi::eSamplerLinearClamp));
 
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
@@ -890,7 +890,7 @@ void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t gr
 
         CHI_VALIDATE(ctx.pCompute->bindConsts(8, 0, pCb, sizeof(*pCb), 1));
 
-        CHI_VALIDATE(ctx.pCompute->bindSampler(9, 0, chi::eSamplerLinearMirror));
+        CHI_VALIDATE(ctx.pCompute->bindSampler(9, 0, chi::eSamplerLinearClamp));
 
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
@@ -911,7 +911,7 @@ void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t gr
 
         CHI_VALIDATE(ctx.pCompute->bindConsts(5, 0, pCb, sizeof(*pCb), 1));
 
-        CHI_VALIDATE(ctx.pCompute->bindSampler(6, 0, chi::eSamplerLinearMirror));
+        CHI_VALIDATE(ctx.pCompute->bindSampler(6, 0, chi::eSamplerLinearClamp));
 
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
