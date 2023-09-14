@@ -53,7 +53,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionCaliberatedUVHalfTip = samplePosHalfTip;
     motionCaliberatedUVHalfTip = clamp(motionCaliberatedUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
 	float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
-    if (all(abs(motionHalfTipCaliberated)) < viewportInv)
+    if (all(abs(motionHalfTipCaliberated) < viewportInv))
     {
         motionHalfTipCaliberated = -ComputeStaticVelocityTopTip(screenPos, prevDepthTexture.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTip, 0).r, prevClipToClip);
     }
@@ -69,7 +69,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 motionHalfTopCaliberated = currMotionUnprojected.SampleLevel(bilinearMirroredSampler, motionCaliberatedUVHalfTop, 0) * viewportInv;
     if (bIsHalfTopUnwritten)
     {
-        motionHalfTopCaliberated = float2(0.0f, 0.0f) + float2(ImpossibleMotionVecValue, ImpossibleMotionVecValue);
+        motionHalfTopCaliberated = float2(0.0f, 0.0f) + float2(ImpossibleMotionValue, ImpossibleMotionValue);
     }
 	
 	{

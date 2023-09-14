@@ -32,7 +32,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
             int2 finerIndex = finerPixelUpperLeft + subsamplePixelOffset4PointTian[i];
 			float2 finerVector = motionVectorFiner[finerIndex];
             float validity = all(abs(finerVector) < (1.0f / float2(FinerDimension))) ? 0.0f : 1.0f;
-            if (any(finerVector >= ImpossibleMotionVecValue))
+            if (any(finerVector >= ImpossibleMotionValue))
             {
                 validity = 0.0f;
                 finerVector -= float2(ImpossibleMotionOffset, ImpossibleMotionOffset);

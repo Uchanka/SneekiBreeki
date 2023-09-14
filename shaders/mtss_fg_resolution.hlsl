@@ -53,8 +53,13 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     bool isHalfTipWritten = all(abs(velocityHalfTip) < viewportInv) ? false : true;
     bool isHalfTopWritten = all(abs(velocityHalfTop) < viewportInv) ? false : true;
 
-    bool isTopInvisible = any(velocityHalfTop == ImpossibleMotionVecValue) ? true : false;
+    bool isTopInvisible = any(velocityHalfTop == ImpossibleMotionValue) ? true : false;
     bool isTopVisible = !isTopInvisible;
+
+    if (isTopinvisible)
+    {
+        velocityHalfTop -= float2(ImpossibleMotionOffset, ImpossibleMotionOffset);
+    }
 
     bool isTipInvisible = (!isHalfTipWritten && isFullWritten) ? true : false;
     bool isTipVisible = !isTipInvisible;
