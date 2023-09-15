@@ -38,7 +38,7 @@ SL_ENUM_OPERATORS_32(MTSSGFlags)
 SL_STRUCT(MTSSGOptions, StructType({ 0xd7bf2851, 0xc4c0, 0x407d, { 0xa5, 0x56, 0xb5, 0x03, 0x9b, 0x27, 0x54, 0xf9 } }), kStructVersion1)
     //! Specifies which mode should be used.
     MTSSGMode mode = MTSSGMode::eOff;
-    //! Must be 1
+    //! Default is 1
     uint32_t numFramesToGenerate = 1;
     //! Optional - Flags used to enable or disable certain functionality
     MTSSGFlags flags{};
