@@ -2,10 +2,12 @@
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-RWTexture2D<uint> motionReprojTipX;
-RWTexture2D<uint> motionReprojTipY;
-RWTexture2D<uint> motionReprojTopX;
-RWTexture2D<uint> motionReprojTopY;
+RWTexture2D<uint> motionReprojFullX;
+RWTexture2D<uint> motionReprojFullY;
+RWTexture2D<uint> motionReprojHalfTipX;
+RWTexture2D<uint> motionReprojHalfTipY;
+RWTexture2D<uint> motionReprojHalfTopX;
+RWTexture2D<uint> motionReprojHalfTopY;
 
 cbuffer shaderConsts : register(b0)
 {
@@ -28,9 +30,11 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     bool bIsValidPixel = all(uint2(currentPixelIndex) < dimensions);
     if (bIsValidPixel)
     {
-        motionReprojTipX[currentPixelIndex] = UnwrittenPackedClearValue;
-        motionReprojTipY[currentPixelIndex] = UnwrittenPackedClearValue;
-        motionReprojTopX[currentPixelIndex] = UnwrittenPackedClearValue;
-        motionReprojTopY[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojFullX[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojFullY[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojHalfTipX[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojHalfTipY[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojHalfTopX[currentPixelIndex] = UnwrittenPackedClearValue;
+        motionReprojHalfTopY[currentPixelIndex] = UnwrittenPackedClearValue;
     }
 }

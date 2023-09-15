@@ -48,12 +48,8 @@ static uint UnwrittenIndexIndicator = UnwrittenLast13DigitsMask;
 static uint UnwrittenMTSSIndicator = UnwrittenLast1DigitMT1;
 static uint WrittenMTSSIndicator = WrittenLast1DigitMT1;
 
-#ifdef UNREAL_ENGINE_COORDINATES
-static float ImpossibleMotionVecValue = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
-static float ImpossibleMotionVecValue = 8192.0f; //Have to use this 2's power to prevent floating point gimmicks
-#endif
+static float ImpossibleMotionValue = 1.0f; //Have to use this 2's power to prevent floating point gimmicks
+static float ImpossibleMotionOffset = 2.0f; //Have to use this 2's power to prevent floating point gimmicks
 
 //static int depthTotalBits = 19;
 static int expCustomized = 7;

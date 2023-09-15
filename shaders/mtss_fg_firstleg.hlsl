@@ -3,10 +3,9 @@
 
 //------------------------------------------------------- PARAMETERS
 Texture2D<float2> motionVectorFiner;
-Texture2D<float> motionReliabilityFiner;
 
 RWTexture2D<float2> motionVectorCoarser;
-RWTexture2D<float> motionReliabilityCoarser; //This is coarse too
+RWTexture2D<float> motionReliability; //This is coarse too
 
 cbuffer shaderConsts : register(b0)
 {
@@ -32,9 +31,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         {
             int2 finerIndex = finerPixelUpperLeft + subsamplePixelOffset4PointTian[i];
 			float2 finerVector = motionVectorFiner[finerIndex];
-            float finerWeight = motionReliabilityFiner[finerIndex];
-            filteredVector += finerVector * finerWeight;
-            perPixelWeight += finerWeight;
+            float validity = all(abs(finerVector) < (1.0f / float2(FinerDimension))) ? 0.0f : 1.0f;
+            if (any(finerVector >= ImpossibleMotionValue))
+            {
+                validity = 0.0f;
+                finerVector -= float2(ImpossibleMotionOffset, ImpossibleMotionOffset);
+            }
+            filteredVector += finerVector;
+            perPixelWeight += validity;
         }
 		float normalization = SafeRcp(float(subsampleCount4PointTian));
         filteredVector *= normalization;
@@ -46,7 +50,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         if (bIsValidhistoryPixel)
         {
             motionVectorCoarser[coarserPixelIndex] = filteredVector;
-            motionReliabilityCoarser[coarserPixelIndex] = perPixelWeight;
+            motionReliability[coarserPixelIndex] = perPixelWeight;
         }
     }
 }

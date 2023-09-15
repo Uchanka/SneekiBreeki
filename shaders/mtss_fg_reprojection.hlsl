@@ -1,17 +1,17 @@
-// Copyright (c) 2023 Moore Threads Technology Co. Ltd. All rights reserved.
 #include "mtss_common.hlsli"
 
 //------------------------------------------------------- PARAMETERS
-Texture2D<float2> prevMotionVector;
 Texture2D<float2> currMotionVector;
 
-Texture2D<float> depthTextureTip;
+//Texture2D<float> depthTextureTip;
 Texture2D<float> depthTextureTop;
 
-RWTexture2D<uint> motionReprojTipX;
-RWTexture2D<uint> motionReprojTipY;
-RWTexture2D<uint> motionReprojTopX;
-RWTexture2D<uint> motionReprojTopY;
+RWTexture2D<uint> motionReprojFullX;
+RWTexture2D<uint> motionReprojFullY;
+RWTexture2D<uint> motionReprojHalfTipX;
+RWTexture2D<uint> motionReprojHalfTipY;
+RWTexture2D<uint> motionReprojHalfTopX;
+RWTexture2D<uint> motionReprojHalfTopY;
 
 cbuffer shaderConsts : register(b0)
 {
@@ -24,7 +24,7 @@ cbuffer shaderConsts : register(b0)
     float2 viewportInv;
 };
 
-SamplerState bilinearMirroredSampler : register(s0);
+SamplerState bilinearClampedSampler : register(s0);
 
 #define TILE_SIZE 8
 //------------------------------------------------------- ENTRY POINT
@@ -37,112 +37,84 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
 	
     float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
     float2 viewportUV = pixelCenter * viewportInv;
-#ifdef UNREAL_ENGINE_COORDINATES
-    float2 screenPos = ViewportUVToScreenPos(viewportUV);
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
     float2 screenPos = viewportUV;
-#endif
-    
-#ifdef UNREAL_ENGINE_COORDINATES
-    float2 motionVectorDecodedTop = currMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
-    float2 motionVectorDecodedTip = prevMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0);
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
-    //Bruh... Streamline doesn't differentiate static and non-static velocities
-    float2 motionVectorDecodedTop = currMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
-    float2 motionVectorDecodedTip = prevMotionVector.SampleLevel(bilinearMirroredSampler, viewportUV, 0) * viewportInv;
-#endif
-    float2 velocityTipCombined = motionVectorDecodedTip;
-    float2 velocityTopCombined = motionVectorDecodedTop;
+    float2 motionVector = currMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0) * viewportInv;
 
-    //What if we need to interpolate multiple frames?
-    const float distanceTip = tipTopDistance.x;
-    const float distanceTop = tipTopDistance.y;
+    const float distanceFull = tipTopDistance.x + tipTopDistance.y;
+    const float distanceHalfTip = tipTopDistance.x;
+    const float distanceHalfTop = tipTopDistance.y;
 	
-    float2 tipTranslation = velocityTipCombined * distanceTip;
-    float2 topTranslation = velocityTopCombined * distanceTop;
+    float2 velocityCombined = motionVector.xy;
+
+    float2 fullTranslation = velocityCombined * distanceFull;
+    float2 fullTracedScreenPos = screenPos + fullTranslation;
+    int2 fullTracedIndex = floor(fullTracedScreenPos * viewportSize);
+    float2 fullTracedFloatCenter = float2(fullTracedIndex) + float2(0.5f, 0.5f);
+    float2 fullTracedPos = fullTracedFloatCenter * viewportInv;
+    float2 samplePosFull = fullTracedPos - fullTranslation;
+    float2 sampleUVFull = samplePosFull;
+    sampleUVFull = clamp(sampleUVFull, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+    float fullDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVFull, 0);
+    uint fullDepthAsUIntHigh19 = compressDepth(fullDepth);
+
+
+    float2 halfTipTranslation = velocityCombined * distanceHalfTip;
+    float2 halfTipTracedScreenPos = screenPos + fullTranslation - halfTipTranslation;
+    int2 halfTipTracedIndex = floor(halfTipTracedScreenPos * viewportSize);
+    float2 halfTipTracedFloatCenter = float2(halfTipTracedIndex) + float2(0.5f, 0.5f);
+    float2 halfTipTracedPos = halfTipTracedFloatCenter * viewportInv;
+    float2 samplePosHalfTip = halfTipTracedPos + halfTipTranslation;
+    float2 sampleUVHalfTip = samplePosHalfTip;
+    sampleUVHalfTip = clamp(sampleUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+    float halfTipDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVHalfTip, 0);
+    uint halfTipDepthAsUIntHigh19 = compressDepth(halfTipDepth);
+
+
+    float2 halfTopTranslation = velocityCombined * distanceHalfTop;
+    float2 halfTopTracedScreenPos = screenPos + halfTopTranslation;
+    int2 halfTopTracedIndex = floor(halfTopTracedScreenPos * viewportSize);
+    float2 halfTopTracedFloatCenter = float2(halfTopTracedIndex) + float2(0.5f, 0.5f);	
+    float2 halfTopTracedPos = halfTopTracedFloatCenter * viewportInv;
+    float2 samplePosHalfTop = halfTopTracedPos - halfTopTranslation;
+    float2 sampleUVHalfTop = samplePosHalfTop;
+    sampleUVHalfTop = clamp(sampleUVHalfTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+    float halfTopDepth = depthTextureTop.SampleLevel(bilinearClampedSampler, sampleUVHalfTop, 0);
+    uint halfTopDepthAsUIntHigh19 = compressDepth(halfTopDepth);
 	
-#ifdef UNREAL_ENGINE_COORDINATES
-    float2 tipTracedScreenPos = screenPos + tipTranslation;
-    float2 topTracedScreenPos = screenPos - topTranslation;
-	
-    int2 tipTracedIndex = floor(ScreenPosToViewportUV(tipTracedScreenPos) * viewportSize);
-    float2 tipTracedFloatCenter = float2(tipTracedIndex) + float2(0.5f, 0.5f);
-    int2 topTracedIndex = floor(ScreenPosToViewportUV(topTracedScreenPos) * viewportSize);
-    float2 topTracedFloatCenter = float2(topTracedIndex) + float2(0.5f, 0.5f);
-	
-    float2 tipTracedPos = ViewportUVToScreenPos(tipTracedFloatCenter * viewportInv);
-    float2 topTracedPos = ViewportUVToScreenPos(topTracedFloatCenter * viewportInv);
-    
-    float2 samplePosTip = tipTracedPos - tipTranslation;
-    float2 samplePosTop = topTracedPos + topTranslation;
-	
-    float2 sampleUVTip = ScreenPosToViewportUV(samplePosTip);
-    sampleUVTip = clamp(sampleUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 sampleUVTop = ScreenPosToViewportUV(samplePosTop);
-    sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-#endif
-#ifdef NVRHI_DONUT_COORDINATES
-    float2 tipTracedScreenPos = screenPos - tipTranslation;
-    float2 topTracedScreenPos = screenPos + topTranslation;
-	
-    int2 tipTracedIndex = floor(tipTracedScreenPos * viewportSize);
-    float2 tipTracedFloatCenter = float2(tipTracedIndex) + float2(0.5f, 0.5f);
-    int2 topTracedIndex = floor(topTracedScreenPos * viewportSize);
-    float2 topTracedFloatCenter = float2(topTracedIndex) + float2(0.5f, 0.5f);
-	
-    float2 tipTracedPos = tipTracedFloatCenter * viewportInv;
-    float2 topTracedPos = topTracedFloatCenter * viewportInv;
-    
-    float2 samplePosTip = tipTracedPos + tipTranslation;
-    float2 samplePosTop = topTracedPos - topTranslation;
-	
-    float2 sampleUVTip = samplePosTip;
-    sampleUVTip = clamp(sampleUVTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 sampleUVTop = samplePosTop;
-    sampleUVTop = clamp(sampleUVTop, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-#endif
-	
-	float tipDepth = depthTextureTip.SampleLevel(bilinearMirroredSampler, sampleUVTip, 0);
-	float topDepth = depthTextureTop.SampleLevel(bilinearMirroredSampler, sampleUVTop, 0);
-	
-    uint tipDepthAsUIntHigh19 = compressDepth(tipDepth);
-    uint topDepthAsUIntHigh19 = compressDepth(topDepth);
-	
-    uint packedAsUINTHigh19TipX = tipDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
-    uint packedAsUINTHigh19TipY = tipDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
-    uint packedAsUINTHigh19TopX = topDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
-    uint packedAsUINTHigh19TopY = topDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19FullX = fullDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19FullY = fullDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19HalfTipX = halfTipDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19HalfTipY = halfTipDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19HalfTopX = halfTopDepthAsUIntHigh19 | (currentPixelIndex.x & IndexLast13DigitsMask);
+    uint packedAsUINTHigh19HalfTopY = halfTopDepthAsUIntHigh19 | (currentPixelIndex.y & IndexLast13DigitsMask);
 	
 	{
-        bool bIsValidTipPixel = all(tipTracedIndex < int2(dimensions)) && all(tipTracedIndex >= int2(0, 0));
-        if (bIsValidTipPixel)
+        bool bIsValidFullPixel = all(fullTracedIndex < int2(dimensions)) && all(fullTracedIndex >= int2(0, 0));
+        if (bIsValidFullPixel)
         {
             uint originalValX;
             uint originalValY;
-#ifdef DEPTH_LESSER_CLOSER
-            InterlockedMin(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
-            InterlockedMin(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
-#endif
-#ifdef DEPTH_GREATER_CLOSER
-            InterlockedMax(motionReprojTipX[tipTracedIndex], packedAsUINTHigh19TipX, originalValX);
-            InterlockedMax(motionReprojTipY[tipTracedIndex], packedAsUINTHigh19TipY, originalValY);
-#endif 
+
+            InterlockedMax(motionReprojFullX[fullTracedIndex], packedAsUINTHigh19FullX, originalValX);
+            InterlockedMax(motionReprojFullY[fullTracedIndex], packedAsUINTHigh19FullY, originalValY);
         }
-        bool bIsValidTopPixel = all(topTracedIndex < int2(dimensions)) && all(topTracedIndex >= int2(0, 0));
-        if (bIsValidTopPixel)
+        bool bIsValidHalfTipPixel = all(halfTipTracedIndex < int2(dimensions)) && all(halfTipTracedIndex >= int2(0, 0));
+        if (bIsValidHalfTipPixel)
         {
             uint originalValX;
             uint originalValY;
-#ifdef DEPTH_LESSER_CLOSER
-            InterlockedMin(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
-            InterlockedMin(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
-#endif
-#ifdef DEPTH_GREATER_CLOSER
-            InterlockedMax(motionReprojTopX[topTracedIndex], packedAsUINTHigh19TopX, originalValX);
-            InterlockedMax(motionReprojTopY[topTracedIndex], packedAsUINTHigh19TopY, originalValY);
-#endif 
+
+            InterlockedMax(motionReprojHalfTipX[halfTipTracedIndex], packedAsUINTHigh19HalfTipX, originalValX);
+            InterlockedMax(motionReprojHalfTipY[halfTipTracedIndex], packedAsUINTHigh19HalfTipY, originalValY);
+        }
+        bool bIsValidHalfTopPixel = all(halfTopTracedIndex < int2(dimensions)) && all(halfTopTracedIndex >= int2(0, 0));
+        if (bIsValidHalfTopPixel)
+        {
+            uint originalValX;
+            uint originalValY;
+
+            InterlockedMax(motionReprojHalfTopX[halfTopTracedIndex], packedAsUINTHigh19HalfTopX, originalValX);
+            InterlockedMax(motionReprojHalfTopY[halfTopTracedIndex], packedAsUINTHigh19HalfTopY, originalValY);
         }
     }
 }
