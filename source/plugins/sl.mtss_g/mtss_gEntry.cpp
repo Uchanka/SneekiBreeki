@@ -936,7 +936,10 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
     CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojectedHalfTip));
     CHI_VALIDATE(ctx.pCompute->bindTexture(7, 7, ctx.motionReprojectedHalfTopFiltered));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.uiColor));
+    if (static_cast<sl::chi::Resource>(ctx.uiColor)->native != nullptr)
+    {
+        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.uiColor));
+    }
 
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(9, 0, ctx.generatedFrame));
 
@@ -944,7 +947,108 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
 
     CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-    CHI_VALIDATE(ctx.pCompute->bindRWTexture(8, 0, {}));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, {}));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, {}));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(7, 7, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(9, 0, {}));
+}
+
+void interpolateCommon(bool onlyCheckKernelPerf, IDXGISwapChain* swapChain, UINT SyncInterval, UINT Flags, const DXGI_PRESENT_PARAMETERS* pPresentParameters, bool firstFrame, sl::mtssg::PresentApi api, UINT seq, UINT tot)
+{
+    auto& ctx = (*mtssg::getContext());
+    MTSSFG_BEGIN_PERF(onlyCheckKernelPerf, "sl.mtss-fg.kernel");
+    // Not first frame and resource init success, use current surface and refer frame to generate frame
+    sl::uint2  dimensions = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
+    float tipDistance = static_cast<float>(seq + 1) / static_cast<float>(tot + 1);
+    float topDistance = 1.0f - tipDistance;
+    sl::float2 tipTopDistance = sl::float2(tipDistance, topDistance);
+    sl::float2 viewportSize =
+        sl::float2(static_cast<float>(ctx.swapChainWidth), static_cast<float>(ctx.swapChainHeight));
+    sl::float2 viewportInv = sl::float2(1.0f / viewportSize.x, 1.0f / viewportSize.y);
+
+    uint32_t grid[] = { (ctx.swapChainWidth + 8 - 1) / 8, (ctx.swapChainHeight + 8 - 1) / 8, 1 };
+    // MTFKClearing
+    {
+        sl::mtssg::ClearingConstParamStruct lb;
+        lb.dimensions = dimensions;
+        lb.tipTopDistance = tipTopDistance;
+        lb.viewportSize = viewportSize;
+        lb.viewportInv = viewportInv;
+
+        processFrameGenerationClearing(&lb, grid);
+    }
+
+    // MTFKReprojection
+    {
+        sl::mtssg::MVecParamStruct cb;
+        memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
+        memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
+        cb.dimensions = dimensions;
+        cb.tipTopDistance = tipTopDistance;
+        cb.viewportSize = viewportSize;
+        cb.viewportInv = viewportInv;
+
+        processFrameGenerationReprojection(&cb, grid);
+    }
+
+    // MTFKMerging
+    {
+        sl::mtssg::MergeParamStruct mb;
+        memcpy(&mb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
+        memcpy(&mb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
+        mb.dimensions = dimensions;
+        mb.tipTopDistance = tipTopDistance;
+        mb.viewportSize = viewportSize;
+        mb.viewportInv = viewportInv;
+
+        processFrameGenerationMerging(&mb, grid);
+    }
+
+    addPushPullPasses(ctx.motionReprojectedHalfTop, ctx.motionReprojectedHalfTopFiltered, ctx, 1);
+
+    // MTFKResolution
+    {
+        sl::mtssg::ResolutionConstParamStruct rb;
+        rb.dimensions = dimensions;
+        rb.tipTopDistance = tipTopDistance;
+        rb.viewportSize = viewportSize;
+        rb.viewportInv = viewportInv;
+        processFrameGenerationResolution(&rb, grid);
+    }
+    MTSSFG_END_PERF(onlyCheckKernelPerf, "sl.mtss-fg.kernel");
+
+#if MTSSFG_IMGUI
+    bool showDebugOverLay = (ctx.options.flags & MTSSGFlags::eShowDebugOverlay) != 0;
+    if (showDebugOverLay)
+    {
+        sl::MtssFgDebugOverlayInfo info{};
+        info.pRenderTarget = ctx.generatedFrame;
+        info.pPrevDepth = ctx.prevDepth;
+        info.pCurrDepth = ctx.currDepth;
+        info.pPrevHudLessColor = ctx.prevHudLessColor;
+        info.pCurrHudLessColor = ctx.currHudLessColor;
+        info.pPrevMotionVector = ctx.prevMvec;
+        info.pCurrMotionVector = ctx.currMvec;
+        info.pUiColor = ctx.uiColor;
+        ctx.pDebugOverlay->DrawMtssFG(info);
+    }
+#endif
+
+    // Copy generate frame to surface present
+    auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generatedFrame);
+    assert(status == sl::chi::ComputeStatus::eOk);
+
+    if (api == sl::mtssg::PresentApi::Present)
+    {
+        swapChain->Present(SyncInterval, Flags);
+    }
+    else
+    {
+        static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
+    }
+
+    ctx.state.numFramesActuallyPresented++;
+    ctx.state.status = MTSSGStatus::eOk;
 }
 
 void presentCommon(IDXGISwapChain*                swapChain,
@@ -1002,101 +1106,15 @@ void presentCommon(IDXGISwapChain*                swapChain,
     }
     else
     {
-        MTSSFG_BEGIN_PERF(onlyCheckKernelPerf, "sl.mtss-fg.kernel");
-        // Not first frame and resource init success, use current surface and refer frame to generate frame
-        sl::uint2  dimensions     = sl::uint2(ctx.swapChainWidth, ctx.swapChainHeight);
-        sl::float2 tipTopDistance = sl::float2(0.5f, 0.5f);
-        sl::float2 viewportSize =
-            sl::float2(static_cast<float>(ctx.swapChainWidth), static_cast<float>(ctx.swapChainHeight));
-        sl::float2 viewportInv = sl::float2(1.0f / viewportSize.x, 1.0f / viewportSize.y);
-
-        uint32_t grid[] = {(ctx.swapChainWidth + 8 - 1) / 8, (ctx.swapChainHeight + 8 - 1) / 8, 1};
-        // MTFKClearing
-        {
-            sl::mtssg::ClearingConstParamStruct lb;
-            lb.dimensions     = dimensions;
-            lb.tipTopDistance = tipTopDistance;
-            lb.viewportSize   = viewportSize;
-            lb.viewportInv    = viewportInv;
-
-            processFrameGenerationClearing(&lb, grid);
-        }
-
-        // MTFKReprojection
-        {
-            sl::mtssg::MVecParamStruct cb;
-            memcpy(&cb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
-            memcpy(&cb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
-            cb.dimensions     = dimensions;
-            cb.tipTopDistance = tipTopDistance;
-            cb.viewportSize   = viewportSize;
-            cb.viewportInv    = viewportInv;
-
-            processFrameGenerationReprojection(&cb, grid);
-        }
-
-        // MTFKMerging
-        {
-            sl::mtssg::MergeParamStruct mb;
-            memcpy(&mb.prevClipToClip, &ctx.commonConsts->prevClipToClip, sizeof(float) * 16);
-            memcpy(&mb.clipToPrevClip, &ctx.commonConsts->clipToPrevClip, sizeof(float) * 16);
-            mb.dimensions     = dimensions;
-            mb.tipTopDistance = tipTopDistance;
-            mb.viewportSize   = viewportSize;
-            mb.viewportInv    = viewportInv;
-
-            processFrameGenerationMerging(&mb, grid);
-        }
-
-        addPushPullPasses(ctx.motionReprojectedHalfTop, ctx.motionReprojectedHalfTopFiltered, ctx, 1);
-
-        // MTFKResolution
-        {
-            sl::mtssg::ResolutionConstParamStruct rb;
-            rb.dimensions     = dimensions;
-            rb.tipTopDistance = tipTopDistance;
-            rb.viewportSize   = viewportSize;
-            rb.viewportInv    = viewportInv;
-            processFrameGenerationResolution(&rb, grid);
-        }
-        MTSSFG_END_PERF(onlyCheckKernelPerf, "sl.mtss-fg.kernel");
-
         // Copy current surface to refer frame
         auto status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurfaceBackup, ctx.appSurface);
         assert(status == sl::chi::ComputeStatus::eOk);
 
-#if MTSSFG_IMGUI
-        bool showDebugOverLay = (ctx.options.flags & MTSSGFlags::eShowDebugOverlay) != 0;
-        if (showDebugOverLay)
+        const unsigned totalInterpolatedFrames = ctx.options.numFramesToGenerate;
+        for (int seq = 0; seq < totalInterpolatedFrames; ++seq)
         {
-            sl::MtssFgDebugOverlayInfo info{};
-            info.pRenderTarget     = ctx.generatedFrame;
-            info.pPrevDepth        = ctx.prevDepth;
-            info.pCurrDepth        = ctx.currDepth;
-            info.pPrevHudLessColor = ctx.prevHudLessColor;
-            info.pCurrHudLessColor = ctx.currHudLessColor;
-            info.pPrevMotionVector = ctx.prevMvec;
-            info.pCurrMotionVector = ctx.currMvec;
-            info.pUiColor          = ctx.uiColor;
-            ctx.pDebugOverlay->DrawMtssFG(info);
+            interpolateCommon(onlyCheckKernelPerf, swapChain, SyncInterval, Flags, pPresentParameters, firstFrame, api, seq, totalInterpolatedFrames);
         }
-#endif
-
-        // Copy generate frame to surface present
-        status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.generatedFrame);
-        assert(status == sl::chi::ComputeStatus::eOk);
-
-        if (api == sl::mtssg::PresentApi::Present)
-        {
-            swapChain->Present(SyncInterval, Flags);
-        }
-        else
-        {
-            static_cast<IDXGISwapChain1*>(swapChain)->Present1(SyncInterval, Flags, pPresentParameters);
-        }
-
-        ctx.state.numFramesActuallyPresented++;
-        ctx.state.status = MTSSGStatus::eOk;
 
         // Copy refer frame to surface present
         status = ctx.pCompute->copyResource(ctx.pCmdList->getCmdList(), ctx.appSurface, ctx.appSurfaceBackup);
