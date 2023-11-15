@@ -35,6 +35,8 @@ static float3 debugYellow = float3(1.0f, 1.0f, 0.0f);
 static float3 debugMagenta = float3(1.0f, 0.0f, 1.0f);
 static float3 debugCyan = float3(0.0f, 1.0f, 1.0f);
 
+//#define DEBUG_COLORS
+
 [shader("compute")]
 [numthreads(TILE_SIZE, TILE_SIZE, 1)]
 void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint groupThreadIndex : SV_GroupIndex)
@@ -87,7 +89,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     {
         finalSample = topSample;
 #ifdef DEBUG_COLORS
-        finalSample = debugYellow;
+        finalSample = debugRed;
 #endif
     }
     else if (isTipVisible)

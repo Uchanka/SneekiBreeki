@@ -1004,7 +1004,7 @@ void interpolateCommon(bool onlyCheckKernelPerf, IDXGISwapChain* swapChain, UINT
         processFrameGenerationMerging(&mb, grid);
     }
 
-    addPushPullPasses(ctx.motionReprojectedHalfTop, ctx.motionReprojectedHalfTopFiltered, ctx, 1);
+    addPushPullPasses(ctx.motionReprojectedHalfTop, ctx.motionReprojectedHalfTopFiltered, ctx, 0);
 
     // MTFKResolution
     {

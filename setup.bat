@@ -1,5 +1,5 @@
 @echo off
-set cfg=vs2019
+set cfg=vs2022
 :loop
 IF NOT "%1"=="" (
     IF "%1"=="vs2019" (
