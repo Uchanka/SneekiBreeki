@@ -37,14 +37,14 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 viewportUV = pixelCenter * viewportInv;
     float2 screenPos = viewportUV;
 	
-    const float distanceFull = tipTopDistance.x + tipTopDistance.y;
+    const float distanceHalfTop = tipTopDistance.y;
 
     uint fullX = motionReprojFullX[currentPixelIndex];
     uint fullY = motionReprojFullY[currentPixelIndex];
     int2 fullIndex = int2(fullX & IndexLast13DigitsMask, fullY & IndexLast13DigitsMask);
     bool bIsFullUnwritten = any(fullIndex == UnwrittenIndexIndicator);
     float2 motionVectorFull = currMotionUnprojected[fullIndex];
-    float2 samplePosFull = screenPos + motionVectorFull * distanceFull;
+    float2 samplePosFull = screenPos - motionVectorFull * distanceHalfTop;
     float2 motionCaliberatedUVFull = samplePosFull;
     motionCaliberatedUVFull = clamp(motionCaliberatedUVFull, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
     float2 motionFullCaliberated = currMotionUnprojected.SampleLevel(bilinearClampedSampler, motionCaliberatedUVFull, 0) * viewportInv;

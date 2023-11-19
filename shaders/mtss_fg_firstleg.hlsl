@@ -37,6 +37,11 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
                 validity = 0.0f;
                 finerVector -= float2(ImpossibleMotionOffset, ImpossibleMotionOffset);
             }
+            if (all(abs(finerVector) < (1.0f / float2(FinerDimension))))
+            {
+                validity = 0.0f;
+                finerVector = float2(0.0f, 0.0f);
+            }
             filteredVector += finerVector;
             perPixelWeight += validity;
         }

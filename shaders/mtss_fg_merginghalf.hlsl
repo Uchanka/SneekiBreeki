@@ -11,6 +11,8 @@ RWTexture2D<float2> motionReprojectedTip;
 RWTexture2D<float2> motionReprojectedTop;
 
 Texture2D<float2> currMotionUnprojected;
+Texture2D<float2> prevMotionUnprojected;
+Texture2D<float> currDepthTexture;
 Texture2D<float> prevDepthTexture;
 
 cbuffer shaderConsts : register(b0)
@@ -48,11 +50,11 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     uint halfTipY = motionReprojHalfTipY[currentPixelIndex];
     int2 halfTipIndex = int2(halfTipX & IndexLast13DigitsMask, halfTipY & IndexLast13DigitsMask);
     bool bIsHalfTipUnwritten = any(halfTipIndex == UnwrittenIndexIndicator);
-    float2 motionVectorHalfTip = currMotionUnprojected[halfTipIndex] * viewportInv;
-    float2 samplePosHalfTip = screenPos - motionVectorHalfTip * (distanceFull - distanceHalfTip);
+    float2 motionVectorHalfTip = prevMotionUnprojected[halfTipIndex] * viewportInv;
+    float2 samplePosHalfTip = screenPos + motionVectorHalfTip * distanceHalfTip;
     float2 motionCaliberatedUVHalfTip = samplePosHalfTip;
     motionCaliberatedUVHalfTip = clamp(motionCaliberatedUVHalfTip, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-    float2 motionHalfTipCaliberated = currMotionUnprojected.SampleLevel(bilinearClampedSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
+    float2 motionHalfTipCaliberated = prevMotionUnprojected.SampleLevel(bilinearClampedSampler, motionCaliberatedUVHalfTip, 0) * viewportInv;
     if (all(abs(motionHalfTipCaliberated) < viewportInv))
     {
         motionHalfTipCaliberated = -ComputeStaticVelocityTopTip(screenPos, prevDepthTexture.SampleLevel(bilinearClampedSampler, motionCaliberatedUVHalfTip, 0).r, prevClipToClip);

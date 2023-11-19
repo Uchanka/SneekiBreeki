@@ -92,11 +92,21 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
         finalSample = debugRed;
 #endif
     }
-    else if (isTipVisible)
+    else if (isFullWritten)
     {
         finalSample = tipSample;
 #ifdef DEBUG_COLORS
         finalSample = debugBlue;
+#endif
+    }
+    else if (isHalfTipWritten)
+    {
+        float2 halfScreenPos = screenPos + distanceTip * velocityHalfTip;
+        float2 halfUVTip = halfScreenPos;
+        
+        finalSample = colorTextureTip.SampleLevel(bilinearClampedSampler, halfUVTip, 0);
+#ifdef DEBUG_COLORS
+        finalSample = debugGreen;
 #endif
     }
     else
