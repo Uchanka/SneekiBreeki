@@ -1049,8 +1049,8 @@ void interpolateCommon(bool onlyCheckKernelPerf, IDXGISwapChain* swapChain, UINT
         processFrameGenerationNormalizing(&nb, grid);
     }
 
-    addPushPullPasses(ctx.currMvecDuplicated, ctx.currMvecFiltered, ctx, 0);
-    addPushPullPasses(ctx.prevMvecDuplicated, ctx.prevMvecFiltered, ctx, 0);
+    addPushPullPasses(ctx.currMvecDuplicated, ctx.currMvecFiltered, ctx, 3);
+    addPushPullPasses(ctx.prevMvecDuplicated, ctx.prevMvecFiltered, ctx, 3);
 
     // MTFKReprojection
     {
