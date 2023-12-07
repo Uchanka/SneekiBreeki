@@ -948,7 +948,7 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
     CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.currHudLessColor));
     CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currMvecFiltered));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currMvec));
 
     CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojectedFullFiltered));
     CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojectedHalfTipFiltered));
@@ -996,8 +996,8 @@ void interpolateCommon(bool onlyCheckKernelPerf, IDXGISwapChain* swapChain, UINT
         processFrameGenerationClearing(&lb, grid);
     }
 
-    addPushPullPasses(ctx.currMvec, ctx.currMvecFiltered, ctx, 3);
-    addPushPullPasses(ctx.prevMvec, ctx.prevMvecFiltered, ctx, 3);
+    addPushPullPasses(ctx.currMvec, ctx.currMvecFiltered, ctx, 0);
+    addPushPullPasses(ctx.prevMvec, ctx.prevMvecFiltered, ctx, 0);
 
     // MTFKReprojection
     {
