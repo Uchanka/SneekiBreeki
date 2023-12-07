@@ -14,13 +14,14 @@
 #include "source/plugins/sl.common/commonInterface.h"
 #include "external/json/include/nlohmann/json.hpp"
 #include "_artifacts/gitVersion.h"
+#include "_artifacts/shaders/mtss_fg_clearing_cs.h"
 #include "_artifacts/shaders/mtss_fg_firstleg_cs.h"
-#include "_artifacts/shaders/mtss_fg_pushing_cs.h"
 #include "_artifacts/shaders/mtss_fg_laststretch_cs.h"
+#include "_artifacts/shaders/mtss_fg_pushing_cs.h"
 #include "_artifacts/shaders/mtss_fg_pulling_cs.h"
 #include "_artifacts/shaders/mtss_fg_mergingfull_cs.h"
 #include "_artifacts/shaders/mtss_fg_merginghalf_cs.h"
-#include "_artifacts/shaders/mtss_fg_clearing_cs.h"
+#include "_artifacts/shaders/mtss_fg_normalizing_cs.h"
 #include "_artifacts/shaders/mtss_fg_reprojection_cs.h"
 #include "_artifacts/shaders/mtss_fg_resolution_cs.h"
 
@@ -59,6 +60,14 @@ namespace mtssg
     }
 
 struct ClearingConstParamStruct
+{
+    sl::uint2  dimensions;
+    sl::float2 tipTopDistance;
+    sl::float2 viewportSize;
+    sl::float2 viewportInv;
+};
+
+struct NormalizingConstParamStruct
 {
     sl::uint2  dimensions;
     sl::float2 tipTopDistance;
@@ -139,6 +148,8 @@ struct MTSSGContext
     sl::chi::Resource motionReprojectedHalfTip{};
     sl::chi::Resource motionReprojectedHalfTop{};
 
+    sl::chi::Resource currMvecDuplicated{};
+    sl::chi::Resource prevMvecDuplicated{};
     sl::chi::Resource currMvecFiltered{};
     sl::chi::Resource prevMvecFiltered{};
 
@@ -168,6 +179,7 @@ struct MTSSGContext
     chi::CommandQueue         cmdCopyQueue{};
 
     sl::chi::Kernel clearKernel;
+    sl::chi::Kernel normalizeKernel;
     sl::chi::Kernel reprojectionKernel;
     sl::chi::Kernel mergeKernelHalf;
     sl::chi::Kernel mergeKernelFull;
@@ -342,6 +354,11 @@ uint32_t calcEstimatedVRAMUsageInBytes()
     }
 
     {
+        // filtered curr/prevMvec, duplicated curr/prevMvec
+        vRAMUsageInBytes += calcResourceUsageBytes(ctx.currMvecFiltered, 4);
+    }
+
+    {
         // motionReprojectedHalfTipX, motionReprojectedHalfTipY, motionReprojectedHalfTopX and motionReprojectedHalfTopY, motionReprojectedFullX and motionReprojectedFullY
         vRAMUsageInBytes += calcResourceUsageBytes(ctx.motionReprojectedHalfTipX, 6);
     }
@@ -427,6 +444,8 @@ void destroyFrameGenerationResource()
 
     CHI_VALIDATE(destroyResource(&ctx.currMvecFiltered));
     CHI_VALIDATE(destroyResource(&ctx.prevMvecFiltered));
+    CHI_VALIDATE(destroyResource(&ctx.currMvecDuplicated));
+    CHI_VALIDATE(destroyResource(&ctx.prevMvecDuplicated));
 
     CHI_VALIDATE(destroyResource(&ctx.motionReprojectedFullFiltered));
     CHI_VALIDATE(destroyResource(&ctx.motionReprojectedHalfTipFiltered));
@@ -509,6 +528,8 @@ void createGeneratedFrame(uint32_t width, uint32_t height, DXGI_FORMAT format)
 
         CHI_VALIDATE(ctx.pCompute->createTexture2D(desc, ctx.currMvecFiltered, "motionUnprojectedCurrFiltered"));
         CHI_VALIDATE(ctx.pCompute->createTexture2D(desc, ctx.prevMvecFiltered, "motionUnprojectedPrevFiltered"));
+        CHI_VALIDATE(ctx.pCompute->createTexture2D(desc, ctx.currMvecDuplicated, "motionUnprojectedCurrDuplicated"));
+        CHI_VALIDATE(ctx.pCompute->createTexture2D(desc, ctx.prevMvecDuplicated, "motionUnprojectedPrevDuplicated"));
 
         CHI_VALIDATE(ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedFullFiltered, "motionReprojectedFullFiltered"));
         CHI_VALIDATE(ctx.pCompute->createTexture2D(desc, ctx.motionReprojectedHalfTipFiltered, "motionReprojectedTipFiltered"));
@@ -854,6 +875,27 @@ void processFrameGenerationClearing(sl::mtssg::ClearingConstParamStruct* pCb, ui
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 5, {}));
 }
 
+void processFrameGenerationNormalizing(sl::mtssg::NormalizingConstParamStruct* pCb, uint32_t grid[])
+{
+    auto& ctx = (*mtssg::getContext());
+
+    CHI_VALIDATE(ctx.pCompute->bindSharedState(ctx.pCmdList->getCmdList()));
+
+    CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.normalizeKernel));
+
+    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.currMvec));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevMvec));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 0, ctx.currMvecDuplicated));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 1, ctx.prevMvecDuplicated));
+
+    CHI_VALIDATE(ctx.pCompute->bindConsts(4, 0, pCb, sizeof(*pCb), 1));
+
+    CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
+
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 0, {}));
+    CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 1, {}));
+}
+
 void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct* pCb, uint32_t grid[])
 {
     auto& ctx = (*mtssg::getContext());
@@ -948,7 +990,7 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
     CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.currHudLessColor));
     CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currMvec));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currMvecFiltered));
 
     CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojectedFullFiltered));
     CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojectedHalfTipFiltered));
@@ -996,8 +1038,19 @@ void interpolateCommon(bool onlyCheckKernelPerf, IDXGISwapChain* swapChain, UINT
         processFrameGenerationClearing(&lb, grid);
     }
 
-    addPushPullPasses(ctx.currMvec, ctx.currMvecFiltered, ctx, 0);
-    addPushPullPasses(ctx.prevMvec, ctx.prevMvecFiltered, ctx, 0);
+    // MTFKNormalizing
+    {
+        sl::mtssg::NormalizingConstParamStruct nb;
+        nb.dimensions = dimensions;
+        nb.tipTopDistance = tipTopDistance;
+        nb.viewportSize = viewportSize;
+        nb.viewportInv = viewportInv;
+
+        processFrameGenerationNormalizing(&nb, grid);
+    }
+
+    addPushPullPasses(ctx.currMvecDuplicated, ctx.currMvecFiltered, ctx, 0);
+    addPushPullPasses(ctx.prevMvecDuplicated, ctx.prevMvecFiltered, ctx, 0);
 
     // MTFKReprojection
     {
@@ -1203,7 +1256,14 @@ void slOnPluginShutdown()
 
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.clearKernel));
     CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.reprojectionKernel));
-    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.resolutionKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.resolutionKernel))
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.normalizeKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.mergeKernelHalf));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.mergeKernelFull));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.pushKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.pullKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.firstlegKernel));
+    CHI_VALIDATE(ctx.pCompute->destroyKernel(ctx.laststretchKernel));
 
     ctx.pCompute->destroyCommandListContext(ctx.pCmdList);
     ctx.pCompute->destroyCommandQueue(ctx.cmdCopyQueue);
@@ -1254,6 +1314,11 @@ bool slOnPluginStartup(const char* jsonConfig, void* device)
                                             "mtss_fg_clearing.cs",
                                             "main",
                                             ctx.clearKernel));
+    CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_normalizing_cs,
+                                            mtss_fg_normalizing_cs_len,
+                                            "mtss_fg_normalizing.cs",
+                                            "main",
+                                            ctx.normalizeKernel));
     CHI_CHECK_RF(ctx.pCompute->createKernel((void*)mtss_fg_reprojection_cs,
                                             mtss_fg_reprojection_cs_len,
                                             "mtss_fg_reprojection.cs",

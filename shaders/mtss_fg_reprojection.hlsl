@@ -38,8 +38,8 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 pixelCenter = float2(currentPixelIndex) + 0.5f;
     float2 viewportUV = pixelCenter * viewportInv;
     float2 screenPos = viewportUV;
-    float2 mCurr = currMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0) * viewportInv;
-    float2 mPrev = prevMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0) * viewportInv;
+    float2 mCurr = currMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0);
+    float2 mPrev = prevMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0);
 
     const float distanceFull = tipTopDistance.x + tipTopDistance.y;
     const float distanceHalfTip = tipTopDistance.x;
