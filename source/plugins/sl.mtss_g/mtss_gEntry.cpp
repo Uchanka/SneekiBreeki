@@ -860,8 +860,8 @@ void processFrameGenerationReprojection(sl::mtssg::MVecParamStruct* pCb, uint32_
 
     CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.reprojectionKernel));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.currMvecFiltered));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.prevMvecFiltered));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(0, 0, ctx.prevMvecFiltered));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(1, 1, ctx.currMvecFiltered));
     CHI_VALIDATE(ctx.pCompute->bindTexture(2, 2, ctx.prevDepth));
     CHI_VALIDATE(ctx.pCompute->bindTexture(3, 3, ctx.currDepth));
 
@@ -902,9 +902,9 @@ void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t gr
         CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 5, ctx.motionReprojectedHalfTop));
 
         CHI_VALIDATE(ctx.pCompute->bindTexture(6, 0, ctx.currMvecFiltered));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(7, 0, ctx.prevMvecFiltered));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 0, ctx.currDepth));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(9, 0, ctx.prevDepth));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(7, 1, ctx.prevMvecFiltered));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 2, ctx.currDepth));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(9, 3, ctx.prevDepth));
 
         CHI_VALIDATE(ctx.pCompute->bindConsts(10, 0, pCb, sizeof(*pCb), 1));
 
@@ -950,13 +950,13 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
 
     CHI_VALIDATE(ctx.pCompute->bindTexture(4, 4, ctx.currMvecFiltered));
 
-    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojectedFull));
-    CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojectedHalfTip));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(5, 5, ctx.motionReprojectedFullFiltered));
+    CHI_VALIDATE(ctx.pCompute->bindTexture(6, 6, ctx.motionReprojectedHalfTipFiltered));
     CHI_VALIDATE(ctx.pCompute->bindTexture(7, 7, ctx.motionReprojectedHalfTopFiltered));
 
     if (static_cast<sl::chi::Resource>(ctx.uiColor)->native != nullptr)
     {
-        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.uiColor));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.currHudLessColor));
     }
 
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(9, 0, ctx.generatedFrame));
