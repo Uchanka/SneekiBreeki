@@ -998,7 +998,7 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
 
     if (static_cast<sl::chi::Resource>(ctx.uiColor)->native != nullptr)
     {
-        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.currHudLessColor));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.uiColor));
     }
 
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(9, 0, ctx.generatedFrame));
