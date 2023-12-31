@@ -935,47 +935,45 @@ void processFrameGenerationMerging(sl::mtssg::MergeParamStruct* pCb, uint32_t gr
     {
         CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.mergeKernelHalf));
 
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.motionReprojectedHalfTipX));
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.motionReprojectedHalfTipY));
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedHalfTopX));
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, ctx.motionReprojectedHalfTopY));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.motionReprojectedHalfTopX));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.motionReprojectedHalfTopY));
 
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, ctx.motionReprojectedHalfTip));
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 5, ctx.motionReprojectedHalfTop));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedHalfTop));
 
-        CHI_VALIDATE(ctx.pCompute->bindTexture(6, 0, ctx.currMvecFiltered));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(7, 1, ctx.prevMvecFiltered));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 2, ctx.currDepth));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(9, 3, ctx.prevDepth));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(3, 0, ctx.currMvecFiltered));
 
-        CHI_VALIDATE(ctx.pCompute->bindConsts(10, 0, pCb, sizeof(*pCb), 1));
+        CHI_VALIDATE(ctx.pCompute->bindConsts(4, 0, pCb, sizeof(*pCb), 1));
 
-        CHI_VALIDATE(ctx.pCompute->bindSampler(11, 0, chi::eSamplerLinearClamp));
+        CHI_VALIDATE(ctx.pCompute->bindSampler(5, 0, chi::eSamplerLinearClamp));
 
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, {}));
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 5, {}));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, {}));
     }
 
     {
         CHI_VALIDATE(ctx.pCompute->bindKernel(ctx.mergeKernelFull));
 
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.motionReprojectedFullX));
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.motionReprojectedFullY));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(0, 0, ctx.motionReprojectedHalfTipX));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(1, 1, ctx.motionReprojectedHalfTipY));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedFullX));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(3, 3, ctx.motionReprojectedFullY));
 
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, ctx.motionReprojectedFull));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, ctx.motionReprojectedHalfTip));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 5, ctx.motionReprojectedFull));
 
-        CHI_VALIDATE(ctx.pCompute->bindTexture(3, 0, ctx.currMvecFiltered));
-        CHI_VALIDATE(ctx.pCompute->bindTexture(4, 0, ctx.prevDepth));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(6, 0, ctx.currMvecFiltered));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(7, 1, ctx.prevMvecFiltered));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 2, ctx.prevDepth));
 
-        CHI_VALIDATE(ctx.pCompute->bindConsts(5, 0, pCb, sizeof(*pCb), 1));
+        CHI_VALIDATE(ctx.pCompute->bindConsts(9, 0, pCb, sizeof(*pCb), 1));
 
-        CHI_VALIDATE(ctx.pCompute->bindSampler(6, 0, chi::eSamplerLinearClamp));
+        CHI_VALIDATE(ctx.pCompute->bindSampler(10, 0, chi::eSamplerLinearClamp));
 
         CHI_VALIDATE(ctx.pCompute->dispatch(grid[0], grid[1], grid[2]));
 
-        CHI_VALIDATE(ctx.pCompute->bindRWTexture(2, 2, {}));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(4, 4, {}));
+        CHI_VALIDATE(ctx.pCompute->bindRWTexture(5, 5, {}));
     }
 }
 
@@ -998,7 +996,7 @@ void processFrameGenerationResolution(sl::mtssg::ResolutionConstParamStruct* pCb
 
     if (static_cast<sl::chi::Resource>(ctx.uiColor)->native != nullptr)
     {
-        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.uiColor));
+        CHI_VALIDATE(ctx.pCompute->bindTexture(8, 8, ctx.currHudLessColor));
     }
 
     CHI_VALIDATE(ctx.pCompute->bindRWTexture(9, 0, ctx.generatedFrame));
@@ -1078,9 +1076,9 @@ void interpolateCommon(bool onlyCheckKernelPerf, IDXGISwapChain* swapChain, UINT
         processFrameGenerationMerging(&mb, grid);
     }
 
-    addPushPullPasses(ctx.motionReprojectedFull, ctx.motionReprojectedFullFiltered, ctx, 1);
-    addPushPullPasses(ctx.motionReprojectedHalfTip, ctx.motionReprojectedHalfTipFiltered, ctx, 1);
-    addPushPullPasses(ctx.motionReprojectedHalfTop, ctx.motionReprojectedHalfTopFiltered, ctx, 1);
+    addPushPullPasses(ctx.motionReprojectedFull, ctx.motionReprojectedFullFiltered, ctx, 3);
+    addPushPullPasses(ctx.motionReprojectedHalfTip, ctx.motionReprojectedHalfTipFiltered, ctx, 3);
+    addPushPullPasses(ctx.motionReprojectedHalfTop, ctx.motionReprojectedHalfTopFiltered, ctx, 3);
 
     // MTFKResolution
     {

@@ -40,6 +40,7 @@ void main(uint2 groupId : SV_GroupID, uint2 localId : SV_GroupThreadID, uint gro
     float2 screenPos = viewportUV;
     float2 mCurr = currMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0);
     float2 mPrev = prevMotionVector.SampleLevel(bilinearClampedSampler, viewportUV, 0);
+    //float2 mPrev = -ComputeStaticVelocityTopTip(screenPos, depthTextureTip.SampleLevel(bilinearClampedSampler, viewportUV, 0).r, prevClipToClip);
 
     const float distanceFull = tipTopDistance.x + tipTopDistance.y;
     const float distanceHalfTip = tipTopDistance.x;
